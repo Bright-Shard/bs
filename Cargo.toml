@@ -3,11 +3,20 @@ name = "os"
 version = "0.1.0"
 edition = "2021"
 
+# For minimising the binary size - taken from phil-opp's bootloader and https://github.com/johnthagen/min-sized-rust
 [profile.dev]
 panic = "abort"
+opt-level = "s"   # Todo: Check if this should be "s" or "z", since they're not always equal
+strip = "symbols"
+lto = true
+codegen-units = 1
 
 [profile.release]
 panic = "abort"
+opt-level = "s"   # Todo: Check if this should be "s" or "z", since they're not always equal
+strip = "symbols"
+lto = true
+codegen-units = 1
 
 [workspace]
 members = ["bootloader", "kernel"]

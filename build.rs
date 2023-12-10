@@ -18,12 +18,19 @@ fn main() {
     );
     let objcopy = llvm_tools.join("llvm-objcopy");
 
+    // Rerun if the bootloader changed
+    println!("cargo:rerun-if-changed={}", bootloader.display());
+
     // Compile the bootloader
     let bootloader_compile = Command::new("cargo")
         .current_dir(bootloader.to_str().unwrap())
         .arg("build")
         .arg("--target-dir")
         .arg("target")
+        .arg("--target")
+        .arg("target.json")
+        .arg("-Z")
+        .arg("build-std=core")
         .status();
     if bootloader_compile.is_err() || !bootloader_compile.unwrap().success() {
         panic!("Failed to compile bootloader");
