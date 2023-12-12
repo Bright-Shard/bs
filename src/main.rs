@@ -10,7 +10,7 @@ fn main() {
         .arg("-drive")
         .arg(format!(
             "format=raw,file={},index=0",
-            root.join("target").join("bootloader.bin").display()
+            root.join("target").join("os.bin").display()
         ))
         .status();
     if qemu.is_err() || !qemu.unwrap().success() {

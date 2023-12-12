@@ -7,6 +7,10 @@ name = "bootloader"
 version = "0.1.0"
 
 [[package]]
+name = "bootstrapper"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 

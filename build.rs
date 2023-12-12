@@ -1,62 +1,116 @@
 use std::{
     env,
+    fs::{read, File},
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
 };
 
+/// An easier way to declare a sub-crate in BS, for it to get compiled correctly.
+struct Package {
+    /// The name of the sub-crate
+    name: &'static str,
+    /// If the sub-crate's binary needs to be converted from an ELF to raw binary
+    needs_transpile: bool,
+}
+/// All of the sub-crates in BS
+const PACKAGES: [Package; 2] = [
+    Package {
+        name: "bootstrapper",
+        needs_transpile: true,
+    },
+    Package {
+        name: "bootloader",
+        needs_transpile: true,
+    },
+];
+
 fn main() {
-    // Locations of packages in BS
     let root = env::var("CARGO_MANIFEST_DIR").unwrap();
     let root = Path::new(&root);
-    let bootloader = root.join("bootloader");
-
+    let target = root.join("target");
     let profile = env::var("PROFILE").unwrap();
-
-    // LLVM tools (see the docs on find_llvm_tools)
-    let llvm_tools = find_llvm_tools().expect(
-        "Couldn't find LLVM tools. Make sure the toolchain component `llvm-tools-preview` is installed via rustup."
-    );
+    let release_mode = profile == "release";
+    let llvm_tools = find_llvm_tools();
     let objcopy = llvm_tools.join("llvm-objcopy");
 
-    // Rerun if the bootloader changed
-    println!("cargo:rerun-if-changed={}", bootloader.display());
+    // Compile all the packages
+    PACKAGES.iter().for_each(|pkg| {
+        let path = root.join(pkg.name);
+        println!("cargo:rerun-if-changed={}", path.display());
 
-    // Compile the bootloader
-    let bootloader_compile = Command::new("cargo")
-        .current_dir(bootloader.to_str().unwrap())
+        compile(&path, release_mode);
+        if pkg.needs_transpile {
+            transpile(&path, &objcopy, &profile)
+        }
+    });
+
+    // Generate the disk image
+    let mut disk = File::create(target.join("os.bin")).expect("Failed to create the OS disk image");
+    disk.write_all(
+        &read(target.join("bootstrapper.bin"))
+            .unwrap_or_else(|e| panic!("Failed to read the OS bootstrapper: {e}"))[0..512],
+    )
+    .unwrap_or_else(|e| panic!("Failed to write the OS bootstrapper to the OS disk: {e}"));
+    for file in ["bootloader"] {
+        disk.write_all(
+            &read(target.join(format!("{file}.bin")))
+                .unwrap_or_else(|e| panic!("Failed to read the OS' {file}: {e}")),
+        )
+        .unwrap_or_else(|e| panic!("Failed to write {file} to the final OS disk: {e}"))
+    }
+}
+
+/// Compiles a BS package
+fn compile(package: &Path, release_mode: bool) {
+    let package_name = package.file_name().unwrap().to_str().unwrap();
+
+    let mut compiler = Command::new("cargo");
+    compiler
+        .current_dir(package)
         .arg("build")
         .arg("--target-dir")
         .arg("target")
         .arg("--target")
         .arg("target.json")
         .arg("-Z")
-        .arg("build-std=core")
-        .status();
-    if bootloader_compile.is_err() || !bootloader_compile.unwrap().success() {
-        panic!("Failed to compile bootloader");
+        .arg("build-std=core");
+
+    if release_mode {
+        compiler.arg("--release");
     }
 
-    // Convert the bootloader to raw binary
-    let bootloader_transpile = Command::new(objcopy)
+    let status = compiler.status();
+    if status.is_err() || !status.unwrap().success() {
+        panic!("Failed to compile {package_name}");
+    }
+}
+
+/// Converts a compiled ELF to raw binary that can be put on a disk
+fn transpile(package: &Path, objcopy: &Path, profile: &str) {
+    let package_name = package.file_name().unwrap().to_str().unwrap();
+    let root = package.parent().unwrap();
+
+    let status = Command::new(objcopy)
         .arg("-I")
         .arg("elf64-x86-64")
         .arg("-O")
         .arg("binary")
         .arg("--binary-architecture=i386:x86-64")
         .arg(
-            bootloader
+            package
                 .join("target")
                 .join("target")
                 .join(profile)
-                .join("bootloader")
+                .join(package_name)
                 .to_str()
                 .unwrap(),
         )
-        .arg(root.join("target").join("bootloader.bin").to_str().unwrap())
+        .arg(root.join("target").join(format!("{package_name}.bin")))
         .status();
 
-    if bootloader_transpile.is_err() || !bootloader_transpile.unwrap().success() {
-        panic!("Failed to convert the bootloader to binary");
+    if status.is_err() || !status.unwrap().success() {
+        panic!("Failed to transpile {package_name}");
     }
 }
 
@@ -64,9 +118,9 @@ fn main() {
 /// raw binaries to load from the disk. BS uses llvm-objcopy to convert the ELFs to raw binary, and thus
 /// needs to find the llvm toolchain.
 ///
-/// This strategy - both using llvm-objcopy and the method for finding it - are taken from phil-opp's work
-/// in Rust OS development. You can find their version of this code at https://github.com/phil-opp/llvm-tools.
-fn find_llvm_tools() -> Option<PathBuf> {
+/// This strategy - both using llvm-objcopy and the method for finding it - are taken from phil-opp's work.
+/// You can find their version of this code at https://github.com/phil-opp/llvm-tools.
+fn find_llvm_tools() -> PathBuf {
     println!("Finding LLVM");
     let mut llvm_tools = None;
     let sysroot = Command::new("rustc")
@@ -83,5 +137,7 @@ fn find_llvm_tools() -> Option<PathBuf> {
         }
     }
 
-    llvm_tools
+    llvm_tools.expect(
+        "Couldn't find LLVM tools. Make sure the toolchain component `llvm-tools-preview` is installed via rustup."
+    )
 }

@@ -2,38 +2,49 @@
 
 Welcome to the... uh... BrightSystem?
 
+It's an x86_64 OS written entirely from scratch, made by yours truly.
+
 # Project Status
 
 TLDR: Mid-rewrite and partial disaster! Fun!
 
-`_old` has a functional OS using many great libraries from phil-opp (the guy who made [this](https://os.phil-opp.com/)). You
-can run `cargo r` there and see it (requires QEMU to be installed). The code is pretty self-contained because it relies
-heavily on dependencies, so you can just go check it out yourself. It was written for a fantastic OS development forum at my
-school.
+`_old` has a functional OS using great libraries from [phil-opp](https://os.phil-opp.com/) and a few others. The code
+isn't super well documented, but it's not *too* complicated, so it should be pretty readable. It was made for an awesome
+OS development forum at my highschool.
 
-Everything else is my WIP dependency-less rewrite. It currently just builds a BIOS bootloader that prints the character `a`.
-I'm working on getting it to load a kernel next, and then will port everything from `_old` over to this new one (and then
-will delete `_old`).
+Everything else is my WIP dependency-less rewrite. Right now, it only has a BIOS bootloader that loads a GDT and prints
+some text to the screen; I'm currently working on adding paging and 64-bit mode to it. After that, the plan is to add an ELF
+loader that will load the kernel into memory (the kernel will be compiled into an ELF). The kernel will be nearly copy/paste
+from the current one in `_old`.
+
+The new version is extremely well documented, including resources for further research. Part of my goal is to make this great
+demo code for future programmers to reference and learn from.
 
 # Project Layout
 
-The root crate is empty, and just contains a build script to create the OS binary. Unfortunately in Rust, build scripts can
-only run code *before* code is compiled, not after. However, there are tasks that need to be run after code is compiled;
-the bootloader, for example, has to be converted from an ELF binary to pure binary that isn't in an executable format. Thus,
-the root crate's `build.rs` goes through every module in BS, compiles it, performs any necessary post-compilation tasks,
-and then leaves the final binary in `target`.
+The **root** crate just contains a build script that correctly compiles all of the sub-crates, and a runner that launches BS in
+QEMU.
 
-The bootloader crate contains the BS bootloader. It's currently just written with inline assembly and a linker script that
-starts the code at the right address and adds the BIOS magic word that marks it as a BIOS bootloader. As stated above, the
-crate will get compiled into an ELF executable, which needs to be converted into raw binary before it's run. The root crate's
-build script accomplishes this with `llvm-objcopy`.
+The **bootstrapper** crate is what gets loaded from BIOS. Unfortunately, BIOS programs are limited to 512 bytes, which is hard
+to do in a Rust program. So the bootstrapper is an extremely small program that just loads the bootloader from disk (without
+the dumb 512-byte limit) and runs it.
 
-The kernel crate is currently empty, but will contain all of the code that's currently in `_old`, ported to the new bootloader.
+The **bootloader** crate contains the BS bootloader, which is responsible for all of the setup the kernel needs to run correctly.
+It has to enable memory paging, 64-bit mode (the processor boots into 16-bit mode, believe it or not), and a few other small things
+that paging and 64-bit mode require to be enabled. It then loads the kernel into memory and runs it. (Note: Currently, the
+bootloader is WIP and actually does none of the above. It does some of the things that are needed to enable paging and 64-bit mode.
+I'm working on adding paging, then will add 64-bit mode, and then will add code to load the kernel.)
+
+The **kernel** crate is currently empty, but will contain all of the code that's currently in `_old`, ported to the new bootloader.
+
+You can go into each crate's folder and read its README for more information.
 
 # Running BS
 
-For the old, more functional version with dependencies, go into `_old` and use a standard `cargo r`/`cargo run`.
+For the old, more functional version with dependencies, run `cargo r`/`cargo run` in the `_old` folder.
 
-For the new version, build the project like normal (`cargo b`/`cargo build`), then run the `bootloader.bin` file in `target`.
-To do this in QEMU, for example, run: `cargo b; qemu-system-x86_64 -drive format=raw,file=target/bootloader.bin,index=0`. Again,
-the new version is just a WIP BIOS bootloader, so you'll only see the letter `a` printed when running it.
+For the new version, just run `cargo r` like normal.
+
+Both versions run in QEMU, so make sure that's installed first. If you want to build and run it manually, the command being used
+under-the-hood essentially boils down to this: `cargo b; qemu-system-x86_64 -drive format=raw,file=target/os.bin,index=0`. For the
+old version, you'll want to load the file `_old/disk.bin` instead of `target/os.bin`.
