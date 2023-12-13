@@ -1,8 +1,12 @@
+use std::env;
+
 fn main() {
     // Make rust compile the binary with our link script
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let root = std::path::Path::new(&root);
+
     println!(
         "cargo:rustc-link-arg-bins=--script={}",
-        root.join("link.ld").to_str().unwrap()
+        root.join("link.ld").display()
     );
 }

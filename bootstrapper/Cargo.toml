@@ -2,11 +2,3 @@
 name = "bootstrapper"
 version = "0.1.0"
 edition = "2021"
-
-[profile.dev]
-debug = false
-overflow-checks = false
-
-[profile.release]
-debug = false
-overflow-checks = false

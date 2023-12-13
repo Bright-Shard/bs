@@ -1,12 +1,22 @@
-//! Loads the Global Descriptor Table (GDT), which configures memory for the CPU. This is needed to switch
-//! the CPU into protected mode.
+//! The Global Descriptor Table, or GDT, is a table that defines memory for the CPU with memory segments. Memory segments
+//! have a base address, size, permissions, and a few extra flags. Segmented memory is a deprecated model - now replaced
+//! with memory paging (see paging.rs) - but is still required to put the CPU into protected (32-bit) or extended (64-bit)
+//! mode.
+//!
+//! The GDT is just an array of 8-byte segment descriptors. Each segment descriptor defines a segment of memory and its permissions.
+//! Segments are allowed to overlap with each other; the simplest GDT configuration is just defining all memory as RWX by
+//! defining a read/write segment that spans all memory and an executable segment that spans all memory (this setup is *quite*
+//! insecure and should not be used without other memory protections).
+//!
+//! The GDT is not stored directly in x86. Instead, the GDTR register stores a *GDT Descriptor*, which stores the size and
+//! location of the GDT.
 //!
 //! Resources:
 //! - https://wiki.osdev.org/Global_Descriptor_Table
 //! - https://wiki.osdev.org/GDT_Tutorial
 //! - https://www.cs.bham.ac.uk/~exr/lectures/opsys/10_11/lectures/os-dev.pdf (the "Entering 32-bit Protected Mode" chapter)
 
-/// The "limit" value of a segment descriptor is actually a u20, but Rust doesn't have a data type for it, so
+/// The "limit" value of a segment descriptor is actually a u20, but Rust is sane and doesn't have a data type for it, so
 /// instead it's stored as a u32 and then compared with this to make sure it's a valid u20 as well.
 pub const U20_MAX: u32 = 0b0000_0000_0000_1111_1111_1111_1111_1111;
 
@@ -35,28 +45,29 @@ impl SegmentDescriptorBuilder {
     /// https://wiki.osdev.org/Global_Descriptor_Table#Segment_Descriptor
     pub const fn build(self) -> SegmentDescriptor {
         if self.limit > U20_MAX {
-            panic!("Segment's limit must fit in a u20");
+            panic!("A memory segment's limit must fit in a u20");
         }
 
-        let limit = self.limit.to_ne_bytes();
+        let limit = self.limit >> 4;
+        let limit = limit.to_ne_bytes();
         let base = self.base.to_ne_bytes();
         [
-            limit[0],
-            limit[1],
             base[0],
+            self.flags.build() | limit[0],
+            self.access.build(),
             base[1],
             base[2],
-            self.access.build(),
-            self.flags.build() | limit[2],
             base[3],
+            limit[1],
+            limit[2],
         ]
     }
 }
 
 /// The segment's access byte controls permissions for this memory segment.
 pub struct SegmentAccessBuilder {
-    /// If this represents a valid segment.
-    pub valid: bool,
+    /// If this segment is in-memory.
+    pub present: bool,
     /// The privilege of this segment, where 0 is highest/kernel privilege and 3 is the lowest/user privilege.
     /// This should technically be a u2, but once again Rust is sane and doesn't have such a bizarre type, so we
     /// just error if the value is greater than 3.
@@ -92,7 +103,7 @@ impl SegmentAccessBuilder {
     pub const fn build(self) -> u8 {
         let mut result = 0;
 
-        if self.valid {
+        if self.present {
             result |= 0b1000_0000;
         }
 
@@ -101,7 +112,7 @@ impl SegmentAccessBuilder {
             1 => result |= 0b0010_0000,
             2 => result |= 0b0100_0000,
             3 => result |= 0b0110_0000,
-            _ => panic!("A segment's privilege can only be between 1 and 3"),
+            _ => panic!("A memory segment's privilege can only be between 0 and 3"),
         }
 
         if self.non_system {
@@ -112,6 +123,9 @@ impl SegmentAccessBuilder {
         }
         if self.direction_conforming {
             result |= 0b0000_0100;
+        }
+        if self.read_write {
+            result |= 0b0000_0010;
         }
         if self.accessed {
             result |= 0b0000_0001;
@@ -132,9 +146,9 @@ pub struct SegmentFlagsBuilder {
     pub long: bool,
 }
 impl SegmentFlagsBuilder {
-    /// Converts the flags into 4 bits. The higher 4 bits are the flags - the lower 4 bits will end up being
-    /// part of the limit value. The layout is `0SPL`, where S is if the segment is paged, P is if it's in
-    /// protected/32-bit mode, and L is if it's in long/64-bit mode. The first bit is unused.
+    /// Converts the flags into 4 bits. The more significant 4 bits are the flags - the less significant 4 bits will
+    /// end up being part of the limit value. The layout is `0SPL`, where S is if the segment is paged, P is if it's
+    /// in protected/32-bit mode, and L is if it's in long/64-bit mode. The first bit is unused.
     pub const fn build(self) -> u8 {
         let mut result = 0;
 
@@ -154,4 +168,15 @@ impl SegmentFlagsBuilder {
 
         result
     }
+}
+
+/// Metadata about the GDT. This struct is what is actually stored in x86, instead of the GDT being stored directly.
+#[repr(packed)]
+pub struct GDTDescriptor {
+    /// The address of the GDT. This is a u32 on 32-bit systems and a u64 on 64-bit systems.
+    pub offset: u64,
+    /// The size of the GDT in bytes, minus 1. The subtraction occurs because the max value of a u16 is 1 less than
+    /// the maximum possible size of the GDT. I think this happens because the GDT always has to have at least 1 value,
+    /// a null segment, but u16s start at 0.
+    pub size: u16,
 }

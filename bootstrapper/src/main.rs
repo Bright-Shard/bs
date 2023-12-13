@@ -4,7 +4,6 @@
 use core::{
     arch::{asm, global_asm},
     mem::transmute,
-    panic::PanicInfo,
 };
 
 // Boilerplate ASM that sets up the stack, disables interrupts, zeroes segment registers,
@@ -84,7 +83,12 @@ extern "C" fn main(disk: u16) -> ! {
     main()
 }
 
-#[panic_handler]
-fn kys(_: &PanicInfo) -> ! {
-    loop {}
+#[cfg(not(test))]
+mod panic {
+    use core::panic::PanicInfo;
+
+    #[panic_handler]
+    fn ohgod(_info: &PanicInfo) -> ! {
+        loop {}
+    }
 }
