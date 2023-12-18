@@ -74,7 +74,9 @@ fn compile(package: &Path, release_mode: bool) {
         .arg("--target")
         .arg("target.json")
         .arg("-Z")
-        .arg("build-std=core");
+        .arg("build-std=core")
+        .arg("-Z")
+        .arg("build-std-features=compiler-builtins-mem");
 
     if release_mode {
         compiler.arg("--release");

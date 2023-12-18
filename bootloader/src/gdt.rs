@@ -16,33 +16,28 @@
 //! - https://wiki.osdev.org/GDT_Tutorial
 //! - https://www.cs.bham.ac.uk/~exr/lectures/opsys/10_11/lectures/os-dev.pdf (the "Entering 32-bit Protected Mode" chapter)
 
-/// The "limit" value of a segment descriptor is actually a u20, but Rust is sane and doesn't have a data type for it, so
-/// instead it's stored as a u32 and then compared with this to make sure it's a valid u20 as well.
+/// For whatever reason, some values in the GDT are u20s. Since there's no u20 type, a u32 is used instead, and verified
+/// as a u20 by making sure it's less than this.
 pub const U20_MAX: u32 = 0b0000_0000_0000_1111_1111_1111_1111_1111;
 
 /// The literal, in-memory representation of a segment descriptor is just 8 bytes.
 pub type SegmentDescriptor = [u8; 8];
 
 /// The GDT is made up of Segment Descriptors, 8-byte structures that describe & configure a segment of memory.
-/// The values in a descriptor aren't continuous - some numbers are defined in multiple bytes, but their bits are
-/// scattered across the descriptor (check the OSDev wiki for more info). Thus, this struct is only used to build
-/// a descriptor, and does not represent its actual layout in memory. The `build` method converts it to actual binary.
 pub struct SegmentDescriptorBuilder {
     /// The minimum address for this region of memory.
     pub base: u32,
     /// The maximum address for this region of memory. Can be in bytes or 4kib pages, depending on a flag in
-    /// the descriptor's flags. This is actually a 20-bit value, but Rust is sane and does not have a u20,
-    /// so we use a u32 here and error if the value is too big.
+    /// the descriptor's flags. This is actually a 20-bit value; it's represented here as a u32, and later is
+    /// compared with `U20_MAX` to make sure it's a valid u20.
     pub limit: u32,
-    /// Flags for this segment.
+    /// See the `SegmentFlagsBuilder` docs.
     pub flags: SegmentFlagsBuilder,
-    /// Permissions for this segment.
+    /// See the `SegmentAccessBuilder` docs.
     pub access: SegmentAccessBuilder,
 }
 impl SegmentDescriptorBuilder {
-    /// Converts the segment descriptor into its actual, 8-byte form. The layout of this structure is so
-    /// confusing and twisted that I won't even bother explaining it here; check the OSDev wiki page instead:
-    /// https://wiki.osdev.org/Global_Descriptor_Table#Segment_Descriptor
+    /// Builds an 8-byte segment descriptor.
     pub const fn build(self) -> SegmentDescriptor {
         if self.limit > U20_MAX {
             panic!("A memory segment's limit must fit in a u20");
@@ -97,9 +92,7 @@ pub struct SegmentAccessBuilder {
     pub accessed: bool,
 }
 impl SegmentAccessBuilder {
-    /// Converts the access values into a byte. The layout is `VPPS_EDRA`, where V is if the segment is valid, P is its
-    /// privilege, S is if it's a system segment, E is if it's executable, D is its direction or if it's conforming, R is
-    /// if it has an extra read/write permissions, and A is if it's been accessed.
+    /// Builds the actual, byte-sized access flags struct.
     pub const fn build(self) -> u8 {
         let mut result = 0;
 
@@ -146,9 +139,7 @@ pub struct SegmentFlagsBuilder {
     pub long: bool,
 }
 impl SegmentFlagsBuilder {
-    /// Converts the flags into 4 bits. The more significant 4 bits are the flags - the less significant 4 bits will
-    /// end up being part of the limit value. The layout is `0SPL`, where S is if the segment is paged, P is if it's
-    /// in protected/32-bit mode, and L is if it's in long/64-bit mode. The first bit is unused.
+    /// Builds the 4-bit-sized segment flags struct.
     pub const fn build(self) -> u8 {
         let mut result = 0;
 

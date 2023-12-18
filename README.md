@@ -32,8 +32,7 @@ the dumb 512-byte limit) and runs it.
 The **bootloader** crate contains the BS bootloader, which is responsible for all of the setup the kernel needs to run correctly.
 It has to enable memory paging, 64-bit mode (the processor boots into 16-bit mode, believe it or not), and a few other small things
 that paging and 64-bit mode require to be enabled. It then loads the kernel into memory and runs it. (Note: Currently, the
-bootloader is WIP and actually does none of the above. It does some of the things that are needed to enable paging and 64-bit mode.
-I'm working on adding paging, then will add 64-bit mode, and then will add code to load the kernel.)
+bootloader is WIP and only enables 64-bit mode and prints some text.)
 
 The **kernel** crate is currently empty, but will contain all of the code that's currently in `_old`, ported to the new bootloader.
 
