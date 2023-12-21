@@ -40,7 +40,7 @@ extern "C" fn main(sector: u8) -> ! {
         asm!("hlt");
     }
 
-    unreachable!()
+    panic!()
 }
 
 /// Builds and sets a GDT with 3 entries: null, all memory read/write, all memory executable.

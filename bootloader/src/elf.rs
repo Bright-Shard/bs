@@ -238,41 +238,23 @@ pub fn parse_from_sector(sector: u8) {
     let elf_header = unsafe { &(address as *const FileHeader).read() };
 
     // Check that the file is a supported ELF file
-    if elf_header.magic_bytes != [0x7F, 0x45, 0x4C, 0x46] {
-        panic!("BS only supports ELF files, but couldn't find the magic bytes. The kernel's first 4 bytes were {:?}.", elf_header.magic_bytes)
+    #[cfg(debug_assertions)]
+    {
+        if elf_header.magic_bytes != [0x7F, 0x45, 0x4C, 0x46] {
+            panic!("Couldn't find the ELF magic bytes.",)
+        }
+        if elf_header.bitness != Bitness::X64 {
+            panic!("BS only supports 64-bit ELFs.")
+        }
+        if elf_header.elf_version != 1 || elf_header.header_version != 1 {
+            panic!("BS only supports v1 ELFs.",)
+        }
+        if elf_header.abi != ABI::SystemV {
+            panic!("BS only supports the SystemV ABI.",)
+        }
+        let object_type = elf_header.object_type;
+        if object_type != ObjectType::Dyn {
+            panic!("BS only supports position-independent ELF objects.",)
+        }
     }
-    if elf_header.bitness != Bitness::X64 {
-        panic!(
-            "BS only supports 64-bit kernels, but the kernel is {:?}.",
-            elf_header.bitness
-        )
-    }
-    if elf_header.elf_version != 1 || elf_header.header_version != 1 {
-        panic!(
-            "BS only supports v1 ELF files, but the kernel's ELF version is {} (header version {}).",
-            elf_header.elf_version, elf_header.header_version
-        )
-    }
-    if elf_header.abi != ABI::SystemV {
-        panic!(
-            "BS only supports the SystemV ABI, but the kernel targets {:?}.",
-            elf_header.abi
-        )
-    }
-    let object_type = elf_header.object_type;
-    if object_type != ObjectType::Dyn {
-        panic!(
-            "BS only supports position-independent ELF objects, but the kernel's object type was {:?}.",
-            object_type
-        )
-    }
-
-    println!(
-        "Parsed ELF header. Its magic bytes are {:?}, its bitness is {:?}, it uses ELF v{}, its target ABI is {:?}, and its object type is {:?}.",
-        elf_header.magic_bytes,
-        elf_header.bitness,
-        elf_header.elf_version,
-        elf_header.abi,
-        object_type
-    );
 }

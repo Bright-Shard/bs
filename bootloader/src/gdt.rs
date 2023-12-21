@@ -39,6 +39,7 @@ pub struct SegmentDescriptorBuilder {
 impl SegmentDescriptorBuilder {
     /// Builds an 8-byte segment descriptor.
     pub const fn build(self) -> SegmentDescriptor {
+        #[cfg(debug_assertions)]
         if self.limit > U20_MAX {
             panic!("A memory segment's limit must fit in a u20");
         }
@@ -105,7 +106,10 @@ impl SegmentAccessBuilder {
             1 => result |= 0b0010_0000,
             2 => result |= 0b0100_0000,
             3 => result |= 0b0110_0000,
+            #[cfg(debug_assertions)]
             _ => panic!("A memory segment's privilege can only be between 0 and 3"),
+            #[cfg(not(debug_assertions))]
+            _ => {}
         }
 
         if self.non_system {
@@ -150,6 +154,7 @@ impl SegmentFlagsBuilder {
             result |= 0b0100_0000;
         }
         if self.long {
+            #[cfg(debug_assertions)]
             if self.protected {
                 panic!("`protected` flag must be false for 64-bit segments");
             }

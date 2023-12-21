@@ -4,16 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 # For minimising the binary size - taken from phil-opp's bootloader and https://github.com/johnthagen/min-sized-rust
-# Note: min-sized-rust recommends turning on LTO. However, when I did this, Rust sometimes inserted extra binary at
-# the start of the bootloader when it was compiled in release mode, which broke the bootloader (because BIOS just
-# loads whatever code is at the start, and my code had been shifted to make room for whatever Rust inserted). So I
-# don't have that enabled, and I don't recommend enabling it to anyone making a similar project.
 [profile.dev]
 panic = "abort"
 opt-level = "s"
 strip = true
 codegen-units = 1
 overflow-checks = false
+lto = true
 
 [profile.release]
 panic = "abort"
@@ -21,6 +18,7 @@ opt-level = "s"
 strip = true
 codegen-units = 1
 overflow-checks = false
+lto = true
 
 [workspace]
 members = ["bootloader", "bootstrapper", "kernel"]
