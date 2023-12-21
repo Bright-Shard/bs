@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+mod disks;
+#[allow(dead_code, clippy::upper_case_acronyms)]
 mod elf;
 mod gdt;
 mod paging;
@@ -14,14 +16,29 @@ use {
 
 #[no_mangle]
 #[link_section = ".main"]
-fn main() -> ! {
-    println!("BS bootloader started. Building GDT...");
-
+extern "C" fn main(sector: u8) -> ! {
+    elf::parse_from_sector(sector);
     let gdt_descriptor = build_gdt();
-    println!("Built GDT. Building page tables...");
     let page_map_level_4 = build_page_tables();
-    println!("Built page tables. Enabling 64-bit mode...");
     enable_64_bit_mode(&gdt_descriptor, &page_map_level_4);
+    // We can't use BIOS calls now that we're in 64-bit mode. This writes to the VGA screen buffer instead.
+    // Unfortunately, this does mean we lose our place and start printing from the top of the screen...
+    "64-bit mode enabled. Booting kernel..."
+        .bytes()
+        .enumerate()
+        .for_each(|(idx, byte)| {
+            let byte = u16::from_be_bytes([0b0000_0111, byte]);
+            unsafe {
+                asm!(
+                    "mov [eax], ecx",
+                    in("eax") 0xb8000 + (idx * 2),
+                    in("ecx") byte
+                )
+            }
+        });
+    unsafe {
+        asm!("hlt");
+    }
 
     unreachable!()
 }
@@ -184,11 +201,6 @@ fn enable_64_bit_mode(gdt_descriptor: &ManuallyDrop<GDTDescriptor>, page_map_lev
             "mov cr0, eax",
             "pop eax"
         )
-    }
-
-    // We can't use BIOS calls now that we're in 64-bit mode. This writes to the VGA screen buffer instead.
-    unsafe {
-        asm!("mov eax, 0xb8000", "mov byte ptr [eax], '!'", "hlt");
     }
 }
 

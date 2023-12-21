@@ -12,16 +12,25 @@ struct Package {
     name: &'static str,
     /// If the sub-crate's binary needs to be converted from an ELF to raw binary
     needs_transpile: bool,
+    /// The target this package needs to be compiled for
+    target: &'static str,
 }
 /// All of the sub-crates in BS
-const PACKAGES: [Package; 2] = [
+const PACKAGES: [Package; 3] = [
     Package {
         name: "bootstrapper",
         needs_transpile: true,
+        target: "target.json",
     },
     Package {
         name: "bootloader",
         needs_transpile: true,
+        target: "target.json",
+    },
+    Package {
+        name: "kernel",
+        needs_transpile: false,
+        target: "x86_64-unknown-none",
     },
 ];
 
@@ -39,7 +48,7 @@ fn main() {
         let path = root.join(pkg.name);
         println!("cargo:rerun-if-changed={}", path.display());
 
-        compile(&path, release_mode);
+        compile(&path, release_mode, pkg.target);
         if pkg.needs_transpile {
             transpile(&path, &objcopy, &profile)
         }
@@ -47,22 +56,29 @@ fn main() {
 
     // Generate the disk image
     let mut disk = File::create(target.join("os.bin")).expect("Failed to create the OS disk image");
-    disk.write_all(
-        &read(target.join("bootstrapper.bin"))
-            .unwrap_or_else(|e| panic!("Failed to read the OS bootstrapper: {e}"))[0..512],
-    )
-    .unwrap_or_else(|e| panic!("Failed to write the OS bootstrapper to the OS disk: {e}"));
-    for file in ["bootloader"] {
+
+    for file in ["bootstrapper", "bootloader"] {
         disk.write_all(
             &read(target.join(format!("{file}.bin")))
                 .unwrap_or_else(|e| panic!("Failed to read the OS' {file}: {e}")),
         )
         .unwrap_or_else(|e| panic!("Failed to write {file} to the final OS disk: {e}"))
     }
+    disk.write_all(
+        &read(
+            root.join("kernel")
+                .join("target")
+                .join("x86_64-unknown-none")
+                .join("debug")
+                .join("kernel"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
 }
 
 /// Compiles a BS package
-fn compile(package: &Path, release_mode: bool) {
+fn compile(package: &Path, release_mode: bool, target: &str) {
     let package_name = package.file_name().unwrap().to_str().unwrap();
 
     let mut compiler = Command::new("cargo");
@@ -72,7 +88,7 @@ fn compile(package: &Path, release_mode: bool) {
         .arg("--target-dir")
         .arg("target")
         .arg("--target")
-        .arg("target.json")
+        .arg(target)
         .arg("-Z")
         .arg("build-std=core")
         .arg("-Z")
@@ -140,6 +156,6 @@ fn find_llvm_tools() -> PathBuf {
     }
 
     llvm_tools.expect(
-        "Couldn't find LLVM tools. Make sure the toolchain component `llvm-tools-preview` is installed via rustup."
+        "Couldn't find LLVM tools. Make sure the toolchain component `llvm-tools` is installed via rustup."
     )
 }

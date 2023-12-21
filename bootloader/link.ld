@@ -2,8 +2,8 @@ PAGE_TABLE_ENTRY = 3 << 62;
 ENTRY(main)
 
 SECTIONS {
-    /* The bootstrapper ends at 0x7e00. This gives a bit of padding and gets loaded at 0x8000. */
-    . = 0x8000;
+    /* The bootstrapper loads the bootloader into memory here. */
+    . = 0x4000;
     
     /* The main function is linked at the very start, so the bootstrapper can just call the function that's at 0x8000. */
     .main :
