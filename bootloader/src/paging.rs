@@ -99,7 +99,6 @@ impl PageMapLevel4EntryBuilder {
             result |= 1 << 63;
         }
 
-        #[cfg(debug_assertions)]
         if (self.address % 4096) != 0 {
             panic!("Page table addresses must be 4kb-aligned");
         }
@@ -179,14 +178,12 @@ impl PageDirectoryPointerTableEntryBuilder {
             result |= 1 << 8;
         }
         if self.pat {
-            #[cfg(debug_assertions)]
             if !self.direct_map {
                 panic!("Non-direct-mapping tables cannot set the PAT bit");
             }
             result |= 1 << 12;
         }
         if let Some(key) = self.protection_key {
-            #[cfg(debug_assertions)]
             if key > U4_MAX {
                 panic!("Protection key is too large, it must fit in 4 bits");
             }
@@ -273,7 +270,6 @@ impl PageTableEntryBuilder {
             result |= 1 << 8;
         }
         if let Some(key) = self.protection_key {
-            #[cfg(debug_assertions)]
             if key > U4_MAX {
                 panic!("Protection key is too large, it must fit in 4 bits");
             }

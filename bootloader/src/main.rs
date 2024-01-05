@@ -17,10 +17,14 @@ use {
 #[no_mangle]
 #[link_section = ".main"]
 extern "C" fn main(sector: u8) -> ! {
+    // TODO: Enable A20 line - https://wiki.osdev.org/A20_Line
+    // QEMU has it enabled by default, so we don't need it for now.
+
     elf::parse_from_sector(sector);
     let gdt_descriptor = build_gdt();
     let page_map_level_4 = build_page_tables();
     enable_64_bit_mode(&gdt_descriptor, &page_map_level_4);
+
     // We can't use BIOS calls now that we're in 64-bit mode. This writes to the VGA screen buffer instead.
     // Unfortunately, this does mean we lose our place and start printing from the top of the screen...
     "64-bit mode enabled. Booting kernel..."
@@ -36,6 +40,7 @@ extern "C" fn main(sector: u8) -> ! {
                 )
             }
         });
+
     unsafe {
         asm!("hlt");
     }

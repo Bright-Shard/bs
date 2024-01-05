@@ -3,7 +3,7 @@ ENTRY(main)
 
 SECTIONS {
     /* The bootstrapper loads the bootloader into memory here. */
-    . = 0x4000;
+    . = 0x7E00;
     
     /* The main function is linked at the very start, so the bootstrapper can just call the function that's at 0x8000. */
     .main :

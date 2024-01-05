@@ -30,13 +30,7 @@ asm_main:
     mov gs, ax
     
     /* Set up the stack */
-    mov sp, 0x4000
-
-    /* Enable A20 via BIOS */
-    /* I'm not sure how well-supported this is, found it at the bottom here: */
-    /* https://www.win.tue.nl/~aeb/linux/kbd/A20.html */
-    mov ax, 2401
-    int 0x15
+    mov sp, 0x7C00
     
     /* Call main with dx as the argument */
     mov dh, 0
@@ -48,7 +42,7 @@ asm_main:
 #[no_mangle]
 extern "C" fn main(disk: u16) -> ! {
     // Where the disk is loaded to in memory
-    let mut address: u16 = 0x4000;
+    let mut address: u16 = 0x7E00;
     // The sector of the disk to read
     let mut sector: u8 = 2;
     // The signature found at the end of the current disk sector
@@ -86,9 +80,8 @@ extern "C" fn main(disk: u16) -> ! {
     }
 
     // Because of its link script, the bootloader's main function is at its 0th byte, so we can load it
-    // from 0x4000 (where we started reading the disk to)
-    unsafe { asm!("mov sp, 0x4000") }
-    let main = 0x4000 as *const ();
+    // from 0x7E00 (where we started reading the disk to)
+    let main = 0x7E00 as *const ();
     let main: extern "C" fn(u8) -> ! = unsafe { transmute(main) };
     main(sector)
 }
