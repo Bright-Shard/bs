@@ -21,4 +21,4 @@ overflow-checks = false
 lto = true
 
 [workspace]
-members = ["bootloader", "bootstrapper", "kernel"]
+members = ["bootloader", "bootstrapper", "common", "kernel"]

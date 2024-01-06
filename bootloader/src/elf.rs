@@ -9,14 +9,14 @@
 
 pub mod structs;
 
-use {crate::*, core::slice, structs::*};
+use {common::*, core::slice, structs::*};
 
 /// When the bootstrapper loads the bootloader, it passes it the last disk sector it read from + 1. When BS
 /// is built, the bootstrapper, bootloader, and kernel are laid out sequentially on the disk, in that order.
 /// This means that the sector passed from the bootstrapper is actually the first sector of the kernel.
 pub fn parse_from_sector(sector: u8) {
     let mut sector = (sector - 1) as u64;
-    let base_address = 0xFFFFF;
+    let base_address = 0xFFFF;
     let mut address = base_address;
     disks::read_sectors(&mut sector, 1, &mut address);
 

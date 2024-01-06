@@ -5,14 +5,27 @@ version = 3
 [[package]]
 name = "bootloader"
 version = "0.1.0"
+dependencies = [
+ "common",
+]
 
 [[package]]
 name = "bootstrapper"
+version = "0.1.0"
+dependencies = [
+ "common",
+]
+
+[[package]]
+name = "common"
 version = "0.1.0"
 
 [[package]]
 name = "kernel"
 version = "0.1.0"
+dependencies = [
+ "common",
+]
 
 [[package]]
 name = "os"

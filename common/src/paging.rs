@@ -34,8 +34,6 @@
 //! - https://wiki.osdev.org/Entering_Long_Mode_Directly
 //! - https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html (specifically vol 3, chap 4)
 
-#![allow(dead_code)]
-
 use core::mem::ManuallyDrop;
 
 const U4_MAX: u8 = 0b0000_1111;

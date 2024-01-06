@@ -36,6 +36,8 @@ bootloader is WIP and only enables 64-bit mode and prints some text.)
 
 The **kernel** crate is currently empty, but will contain all of the code that's currently in `_old`, ported to the new bootloader.
 
+The **common** crate is a library with functions reused across the above crates.
+
 You can go into each crate's folder and read its README for more information.
 
 # Running BS

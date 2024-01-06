@@ -1,17 +1,12 @@
 #![no_std]
 #![no_main]
 
-mod disks;
 #[allow(dead_code, clippy::upper_case_acronyms)]
 mod elf;
-mod gdt;
-mod paging;
-mod print;
 
 use {
+    common::{gdt::*, paging::*, *},
     core::{arch::asm, mem::ManuallyDrop},
-    gdt::*,
-    paging::*,
 };
 
 #[no_mangle]
@@ -206,16 +201,5 @@ fn enable_64_bit_mode(gdt_descriptor: &ManuallyDrop<GDTDescriptor>, page_map_lev
             "mov cr0, eax",
             "pop eax"
         )
-    }
-}
-
-#[cfg(not(test))]
-mod panic {
-    use {super::*, core::panic::PanicInfo};
-
-    #[panic_handler]
-    fn ohgod(info: &PanicInfo) -> ! {
-        println!("\n\n(don't?) PANIC:\n\n{info}");
-        loop {}
     }
 }
