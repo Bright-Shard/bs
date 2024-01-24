@@ -1,0 +1,26 @@
+[workspace]
+default-run = "qemu"
+
+[crates.bootstrapper]
+path = "boot/bootstrapper"
+target = "boot/boot-target.json"
+unstable.build-std = "core"
+
+[crates.bootloader]
+path = "boot/bootloader"
+target = "boot/boot-target.json"
+prebuild.bootstrapper = {}
+unstable.build-std-features = "compiler-builtins-mem"
+unstable.build-std = ["core", "compiler_builtins"]
+
+[crates.kernel]
+target = "x86_64-unknown-none"
+prebuild.bootstrapper = {}
+prebuild.bootloader = {}
+unstable.build-std = ["core", "compiler_builtins", "alloc"]
+unstable.build-std-features = "compiler-builtins-mem"
+
+[crates.qemu]
+prebuild.bootstrapper = {}
+prebuild.bootloader = {}
+prebuild.kernel = {}

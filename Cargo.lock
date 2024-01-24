@@ -12,12 +12,17 @@ dependencies = [
 [[package]]
 name = "bootstrapper"
 version = "0.1.0"
-dependencies = [
- "common",
-]
+
+[[package]]
+name = "build-tools"
+version = "0.1.0"
 
 [[package]]
 name = "common"
+version = "0.1.0"
+
+[[package]]
+name = "frieren"
 version = "0.1.0"
 
 [[package]]
@@ -28,5 +33,5 @@ dependencies = [
 ]
 
 [[package]]
-name = "os"
+name = "qemu"
 version = "0.1.0"

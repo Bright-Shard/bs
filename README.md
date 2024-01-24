@@ -2,50 +2,47 @@
 
 Welcome to the... uh... BrightSystem?
 
-It's an x86_64 OS written entirely from scratch, made by yours truly.
+It's an x86_64 OS written entirely from scratch (no dependencies), made by yours truly.
+
+*This project was written without the assistance of GitHub CodeStealer, OpenAI's ChatGPThief, or other similar
+content-stealing predictive algorithms.*
 
 # Project Status
 
 TLDR: Mid-rewrite and partial disaster! Fun!
 
-`_old` has a functional OS using great libraries from [phil-opp](https://os.phil-opp.com/) and a few others. The code
+`_old` has a functional kernel that uses the great libraries from [phil-opp](https://os.phil-opp.com/) and a few others. The code
 isn't super well documented, but it's not *too* complicated, so it should be pretty readable. It was made for an awesome
 OS development forum at my highschool.
 
-Everything else is my WIP dependency-less rewrite. Right now, it only has a BIOS bootloader that loads a GDT and prints
-some text to the screen; I'm currently working on adding paging and 64-bit mode to it. After that, the plan is to add an ELF
-loader that will load the kernel into memory (the kernel will be compiled into an ELF). The kernel will be nearly copy/paste
-from the current one in `_old`.
+Everything else is my WIP dependency-less rewrite. Right now, it only has a BIOS bootloader that can enter 64-bit mode.
+The next step is to implement an ELF parser, then an ELF loader, and then load the kernel (which will simply be an ELF file).
 
-The new version is extremely well documented, including resources for further research. Part of my goal is to make this great
-demo code for future programmers to reference and learn from.
+The new version of BS is extremely well documented, including resources for further research. Part of my goal is to make this
+excellent demo code for future programmers to reference and learn from.
 
 # Project Layout
 
-The **root** crate just contains a build script that correctly compiles all of the sub-crates, and a runner that launches BS in
-QEMU.
+Every folder has a README and is hopefully self-explanatory, but here's a rough table of contents for this repo:
+- `boot`: All the crates in BS' bootloader.
+- `kernel`: BS' kernel (currently empty until the ELF loader is written).
+- `lib`: Helper libraries used by BS. This has build tools, Frieren (the WIP ELF loader), and a common library (which will
+soon be split into multiple crates). These crates have their own libraries because they're used by multiple crates in BS
+(eg, the bootloader loads an ELF, but the final operating system will be able to as well).
+- `qemu`: A crate that builds BS into a final disk and launches it in QEMU.
 
-The **bootstrapper** crate is what gets loaded from BIOS. Unfortunately, BIOS programs are limited to 512 bytes, which is hard
-to do in a Rust program. So the bootstrapper is an extremely small program that just loads the bootloader from disk (without
-the dumb 512-byte limit) and runs it.
+# Building & Running BS
 
-The **bootloader** crate contains the BS bootloader, which is responsible for all of the setup the kernel needs to run correctly.
-It has to enable memory paging, 64-bit mode (the processor boots into 16-bit mode, believe it or not), and a few other small things
-that paging and 64-bit mode require to be enabled. It then loads the kernel into memory and runs it. (Note: Currently, the
-bootloader is WIP and only enables 64-bit mode and prints some text.)
+For the old, more functional version of BS with dependencies, run `cargo r` in the `_old` folder.
 
-The **kernel** crate is currently empty, but will contain all of the code that's currently in `_old`, ported to the new bootloader.
+The new version uses my custom build system, [bargo](https://github.com/bright-shard/bargo), so you'll need to install that first
+(fear not - bargo only has 1 dependency, a dependency-free toml parser, and should compile in seconds). Bargo is sort of a wrapper
+around Cargo, so you can use it almost exactly the same way - `bargo b` to build, `bargo r` to run, `-r` for release mode, etc.
 
-The **common** crate is a library with functions reused across the above crates.
-
-You can go into each crate's folder and read its README for more information.
-
-# Running BS
-
-For the old, more functional version with dependencies, run `cargo r`/`cargo run` in the `_old` folder.
-
-For the new version, just run `cargo r` like normal.
+If you're wondering why BS uses bargo instead of Cargo, it's because Cargo doesn't have all the features I need. I need post-build
+scripts, and the ability to use `build-std` for multiple targets, since the bootloader has a different target than the kernel and OS.
+I tried for hours, but could not come up with a sane way to implement this in vanilla Cargo.
 
 Both versions run in QEMU, so make sure that's installed first. If you want to build and run it manually, the command being used
-under-the-hood essentially boils down to this: `cargo b; qemu-system-x86_64 -drive format=raw,file=target/os.bin,index=0`. For the
-old version, you'll want to load the file `_old/disk.bin` instead of `target/os.bin`.
+under-the-hood essentially boils down to this: `cargo b; qemu-system-x86_64 -drive format=raw,file=target/bs.bin,index=0`. For the
+old version, you'll want to load the file `_old/disk.bin` instead of `target/bs.bin`.

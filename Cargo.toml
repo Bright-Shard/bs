@@ -1,7 +1,16 @@
-[package]
-name = "os"
-version = "0.1.0"
-edition = "2021"
+# This is here purely for rust-analyzer's benefit
+
+[workspace]
+resolver = "2"
+members = [
+    "kernel",
+    "boot/bootloader",
+    "boot/bootstrapper",
+    "lib/common",
+    "lib/build-tools",
+    "lib/frieren",
+    "qemu",
+]
 
 # For minimising the binary size - taken from phil-opp's bootloader and https://github.com/johnthagen/min-sized-rust
 [profile.dev]
@@ -9,7 +18,6 @@ panic = "abort"
 opt-level = "s"
 strip = true
 codegen-units = 1
-overflow-checks = false
 lto = true
 
 [profile.release]
@@ -17,8 +25,4 @@ panic = "abort"
 opt-level = "s"
 strip = true
 codegen-units = 1
-overflow-checks = false
 lto = true
-
-[workspace]
-members = ["bootloader", "bootstrapper", "common", "kernel"]
