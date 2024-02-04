@@ -1,4 +1,5 @@
-//! Builds BS into a bootable disk.
+//! Builds BS into a bootable disk. This is implemented as a postbuild because postbuilds will always run
+//! after a crate has compiled, but normal builds will not be run if a crate isn't recompiled.
 
 use std::{
 	env,
@@ -23,6 +24,9 @@ fn main() {
 		.unwrap();
 	output
 		.write_all(&fs::read(bs_bins.join("bootloader.bin")).unwrap())
+		.unwrap();
+	output
+		.write_all(&fs::read(bs_bins.join("elf-loader.bin")).unwrap())
 		.unwrap();
 
 	let kernel_path = target

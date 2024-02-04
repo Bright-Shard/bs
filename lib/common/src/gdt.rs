@@ -163,11 +163,11 @@ impl SegmentFlagsBuilder {
 
 /// Metadata about the GDT. This struct is what is actually stored in x86, instead of the GDT being stored directly.
 #[repr(packed)]
-pub struct GDTDescriptor {
-	/// The address of the GDT. This is a u32 on 32-bit systems and a u64 on 64-bit systems.
-	pub offset: u64,
+pub struct GdtDescriptor {
 	/// The size of the GDT in bytes, minus 1. The subtraction occurs because the max value of a u16 is 1 less than
 	/// the maximum possible size of the GDT. I think this happens because the GDT always has to have at least 1 value,
 	/// a null segment, but u16s start at 0.
 	pub size: u16,
+	/// The address of the GDT. This is a u32 on 32-bit systems and a u64 on 64-bit systems.
+	pub offset: u64,
 }

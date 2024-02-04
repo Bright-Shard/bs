@@ -1,11 +1,11 @@
 [package]
-name = "bootstrapper"
+name = "elf-loader"
 version = "0.1.0"
 edition = "2021"
 
+[dependencies.frieren]
+path = "../../lib/frieren"
+
 [dependencies.common]
 path = "../../lib/common"
-features = ["bios"]
-
-[dependencies.acpi]
-path = "../../lib/acpi"
+features = ["panic"]

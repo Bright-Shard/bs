@@ -27,7 +27,13 @@ pub struct DiskAddressPacket {
 
 /// Uses LBA to read disk sectors into memory. Reads <sectors> sectors, starting
 /// at <lba>, to <segment>:<address> in memory. Will increment <lba> and <address> automatically.
-pub fn read_sectors(lba: &mut u64, sectors: u16, address: &mut u16, segment: u16) {
+pub fn read_sectors(
+	lba: &mut u64,
+	sectors: u16,
+	address: &mut u16,
+	segment: u16,
+	disk: Option<u8>,
+) {
 	let dap = DiskAddressPacket {
 		size: 16,
 		reserved: 0,
@@ -37,7 +43,7 @@ pub fn read_sectors(lba: &mut u64, sectors: u16, address: &mut u16, segment: u16
 		lba: *lba,
 	};
 	unsafe {
-		asm!("pusha", "mov si, ax", "mov ah, 0x42", "int 0x13", "popa", in("ax") &dap, in("dl") 0x80_u8);
+		asm!("pusha", "mov si, ax", "mov ah, 0x42", "int 0x13", "popa", in("ax") &dap, in("dl") disk.unwrap_or(0x80_u8));
 	}
 
 	*lba += sectors as u64;

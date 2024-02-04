@@ -2,3 +2,8 @@
 name = "qemu"
 version = "0.1.0"
 edition = "2021"
+
+[features]
+default = []
+# Enables GDB debugging in QEMU, as per https://www.qemu.org/docs/master/system/gdb.html
+gdb = []

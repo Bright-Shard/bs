@@ -1,14 +1,17 @@
-# This is here purely for rust-analyzer's benefit
-
 [workspace]
 resolver = "2"
 members = [
-    "kernel",
-    "boot/bootloader",
-    "boot/bootstrapper",
     "lib/common",
     "lib/build-tools",
     "lib/frieren",
+    "lib/acpi",
+
+    "boot/bootloader",
+    "boot/bootstrapper",
+    "boot/elf-loader",
+
+    "kernel",
+
     "qemu",
 ]
 
@@ -19,6 +22,7 @@ opt-level = "s"
 strip = true
 codegen-units = 1
 lto = true
+overflow-checks = false
 
 [profile.release]
 panic = "abort"
@@ -26,3 +30,4 @@ opt-level = "s"
 strip = true
 codegen-units = 1
 lto = true
+overflow-checks = false

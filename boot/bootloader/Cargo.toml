@@ -6,3 +6,6 @@ edition = "2021"
 [dependencies.common]
 path = "../../lib/common"
 features = ["bios", "panic"]
+
+[dependencies.acpi]
+path = "../../lib/acpi"

@@ -9,7 +9,7 @@ SECTIONS {
         .asm_code
         *(.asm .asm.*)
     }
-    
+
     /* Rust code */
     .rust :
     {
@@ -20,7 +20,7 @@ SECTIONS {
             without them so I don't think they're necessary.
         */
     }
-    
+
     /* The "magic number" that marks this as a BIOS boot program */
     . = 0x7c00 + 510;
     .magic_number :

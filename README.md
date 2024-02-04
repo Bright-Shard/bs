@@ -40,8 +40,7 @@ The new version uses my custom build system, [bargo](https://github.com/bright-s
 around Cargo, so you can use it almost exactly the same way - `bargo b` to build, `bargo r` to run, `-r` for release mode, etc.
 
 If you're wondering why BS uses bargo instead of Cargo, it's because Cargo doesn't have all the features I need. I need post-build
-scripts, and the ability to use `build-std` for multiple targets, since the bootloader has a different target than the kernel and OS.
-I tried for hours, but could not come up with a sane way to implement this in vanilla Cargo.
+scripts, and the ability to use `build-std` for multiple targets, since the bootloader has a different target than the kernel and OS. I tried for hours, but could not come up with a sane way to implement this in vanilla Cargo.
 
 Both versions run in QEMU, so make sure that's installed first. If you want to build and run it manually, the command being used
 under-the-hood essentially boils down to this: `cargo b; qemu-system-x86_64 -drive format=raw,file=target/bs.bin,index=0`. For the

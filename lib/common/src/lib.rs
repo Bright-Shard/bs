@@ -3,6 +3,7 @@
 #[cfg(feature = "bios")]
 pub mod disks;
 pub mod gdt;
+pub mod interrupts;
 pub mod paging;
 pub mod printing;
 

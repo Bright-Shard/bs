@@ -13,7 +13,7 @@ mod vga {
 	}
 	impl VgaTextBuffer {
 		pub fn write_byte(&mut self, byte: u8) {
-			let buffer: &mut [VgaTextChar; 8_000] = unsafe { &mut *(0x8b000 as *mut _) };
+			let buffer: &mut [VgaTextChar; 8_000] = unsafe { &mut *(0xb8000 as *mut _) };
 			buffer[self.idx].letter = byte;
 			self.idx += 1;
 		}
@@ -22,10 +22,15 @@ mod vga {
 		pub fn write(&mut self, args: FmtArgs) {
 			self.write_fmt(args).unwrap()
 		}
+
+		#[inline(always)]
+		pub fn write_nofmt(&mut self, s: &str) {
+			s.as_bytes().iter().for_each(|byte| self.write_byte(*byte));
+		}
 	}
 	impl Write for VgaTextBuffer {
 		fn write_str(&mut self, s: &str) -> core::fmt::Result {
-			s.bytes().for_each(|byte| self.write_byte(byte));
+			self.write_nofmt(s);
 			Ok(())
 		}
 	}
@@ -48,7 +53,7 @@ mod bios {
 
 	pub struct BiosPrinter;
 	impl BiosPrinter {
-		pub fn write_byte(byte: u8) {
+		pub fn write_byte(&self, byte: u8) {
 			unsafe {
 				asm!(
 					"mov ah, 0x0e",
@@ -60,18 +65,24 @@ mod bios {
 			// Newlines don't automatically go back to the first column, so
 			// here we add a carriage return as well to do that.
 			if byte == b'\n' {
-				Self::write_byte(b'\r');
+				self.write_byte(b'\r');
 			}
 		}
 
-		#[inline]
+		#[inline(always)]
 		pub fn write(&mut self, args: FmtArgs) {
 			self.write_fmt(args).unwrap();
 		}
+
+		#[inline(always)]
+		pub fn write_nofmt(&self, s: &str) {
+			s.as_bytes().iter().for_each(|byte| self.write_byte(*byte));
+		}
 	}
 	impl Write for BiosPrinter {
+		#[inline(always)]
 		fn write_str(&mut self, s: &str) -> core::fmt::Result {
-			s.bytes().for_each(Self::write_byte);
+			self.write_nofmt(s);
 			Ok(())
 		}
 	}
@@ -92,9 +103,26 @@ macro_rules! print {
 #[macro_export]
 macro_rules! println {
     () => {
-        unsafe { $crate::printing::BUFFER.write_byte('\n') }
+        unsafe { $crate::printing::BUFFER.write_byte(b'\n') }
     };
     ($($arg:tt)*) => {
         unsafe { $crate::printing::BUFFER.write(format_args!("{}\n", format_args!($($arg)*))) }
     };
+}
+
+#[macro_export]
+macro_rules! print_nofmt {
+	() => {};
+	($str:literal) => {
+		unsafe { $crate::printing::BUFFER.write_nofmt($str) }
+	};
+}
+#[macro_export]
+macro_rules! println_nofmt {
+	() => {
+		unsafe { $crate::printing::BUFFER.write_byte(b'\n') }
+	};
+	($str:literal) => {
+		unsafe { $crate::printing::BUFFER.write_nofmt($str) }
+	};
 }

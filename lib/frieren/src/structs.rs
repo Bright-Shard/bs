@@ -106,7 +106,7 @@ pub struct SectionHeader {
 
 /// The type of a program header in the ELF file.
 #[repr(u32)]
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ProgramType {
 	/// An unused segment.
 	Null = 0,
@@ -129,7 +129,7 @@ pub enum ProgramType {
 
 /// The type of a section header in the ELF file.
 #[repr(u32)]
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum SectionType {
 	/// Unused.
 	Null = 0,
@@ -161,7 +161,7 @@ pub enum SectionType {
 
 /// If an ELF file is 32-bit or 64-bit.
 #[repr(u8)]
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Bitness {
 	X32 = 1,
 	X64 = 2,
@@ -169,7 +169,7 @@ pub enum Bitness {
 
 /// If an ELF file is little endian or big endian.
 #[repr(u8)]
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Endianess {
 	Little = 1,
 	Big = 2,
@@ -184,7 +184,7 @@ impl Endianess {
 
 /// The ELF file's type.
 #[repr(u16)]
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ObjectType {
 	None = 0,
 	/// I'm not sure, but think this is for compiler intermediaries.
@@ -202,7 +202,7 @@ pub enum ObjectType {
 /// The ABI the ELF targets. Taken from the list on Wikipedia:
 /// https://en.wikipedia.org/wiki/Executable_and_Linkable_Format#File_header
 #[repr(u8)]
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ABI {
 	SystemV = 0,
 	HPUX = 1,

@@ -3,15 +3,24 @@
 version = 3
 
 [[package]]
+name = "acpi"
+version = "0.1.0"
+
+[[package]]
 name = "bootloader"
 version = "0.1.0"
 dependencies = [
+ "acpi",
  "common",
 ]
 
 [[package]]
 name = "bootstrapper"
 version = "0.1.0"
+dependencies = [
+ "acpi",
+ "common",
+]
 
 [[package]]
 name = "build-tools"
@@ -20,6 +29,14 @@ version = "0.1.0"
 [[package]]
 name = "common"
 version = "0.1.0"
+
+[[package]]
+name = "elf-loader"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "frieren",
+]
 
 [[package]]
 name = "frieren"
