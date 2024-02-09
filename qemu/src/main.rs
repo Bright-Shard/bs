@@ -11,7 +11,7 @@ fn main() -> Result<(), String> {
 	#[cfg(feature = "gdb")]
 	qemu.arg("-S").arg("-s");
 	qemu.arg("-drive").arg(format!(
-		"format=raw,file={},index=0",
+		"format=raw,file={},media=disk,if=ide,index=0",
 		root.join("target").join("bs.bin").display()
 	));
 

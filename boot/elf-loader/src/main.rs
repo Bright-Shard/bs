@@ -2,12 +2,22 @@
 #![no_main]
 
 use common::*;
-use core::arch::asm;
+use core::arch::{asm, global_asm};
+
+global_asm! {
+r#"
+.section .boot-program-main, "awx"
+.global asm_main
+
+asm_main:
+    call main
+"#
+}
 
 #[no_mangle]
-#[link_section = ".main"]
 extern "C" fn main() -> ! {
-	println!("Inside 64-bit ELF loader :3");
+	println!();
+	println_nofmt!("Inside 64-bit ELF loader :3");
 	unsafe { asm!("hlt") }
 	unreachable!()
 }

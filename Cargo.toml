@@ -5,6 +5,7 @@ members = [
     "lib/build-tools",
     "lib/frieren",
     "lib/acpi",
+    "lib/pci",
 
     "boot/bootloader",
     "boot/bootstrapper",

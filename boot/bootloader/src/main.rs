@@ -2,29 +2,34 @@
 #![no_main]
 
 use {
-	acpi::{
-		rsdp::{Rsdp, RsdpXsdpError},
-		rsdt::Rsdt,
-	},
+	acpi::{rsdp::Rsdp, rsdt::Rsdt},
 	common::{
-		gdt::*,
-		interrupts::{Idt, IdtDescriptor, InterruptDescriptor},
+		gdt::{self, *},
 		paging::*,
 		*,
 	},
 	core::{arch::asm, mem::ManuallyDrop},
+	pci::{
+		classification::{Class, HeaderType, MassStorageControllerSubclass},
+		PciDevice,
+	},
 };
 
 #[no_mangle]
-#[link_section = ".main"]
-extern "C" fn main(sector: u16) -> ! {
+#[link_section = ".boot-program-main"]
+extern "C" fn main() {
 	unsafe {
-		asm!(
-			"mov ah, 0x0e",
-			"int 0x10",
-			in("al") b'/',
-		);
+		// TODO: Make a friendlier API here
+		common::printing::GLOBAL_PRINTER.clear();
 	}
+	// For some reason QEMU cuts off the first 2 lines of the console on my mac; seeing this
+	// message just confirms prints aren't getting cut off.
+	println!("\n\nhewwo");
+
+	// Eventually this PCI code is going to get put in its own crate/boot program.
+	// Right now it's here as a POC.
+	pci();
+
 	// TODO: Enable A20 line - https://wiki.osdev.org/A20_Line
 	// QEMU has it enabled by default, so we don't need it for now.
 
@@ -34,39 +39,26 @@ extern "C" fn main(sector: u16) -> ! {
 
 	// Structs we need to enter 64-bit mode
 	let gdt_descriptor = build_gdt();
-	let idt_descriptor = build_idt();
 	let page_map_level_4 = build_page_tables();
-
-	// Disable interrupt requests
-	unsafe {
-		asm!(
-			"push ax",
-			"mov al, 0xFF",
-			"out 0xA1, al",
-			"out 0x21, al",
-			"nop",
-			"nop",
-			"pop ax"
-		)
-	}
-
-	// Load the IDT
-	unsafe { asm!("lidt [{}]", in(reg) &idt_descriptor) }
 
 	// Sets the PAE bit/enables PAE. PAE: Physical Address Extension, allowing access to >4gb of memory.
 	// This is required to enter 64-bit mode.
-	unsafe {
-		asm!(
-			"push eax",
-			"mov eax, cr4",
-			"or eax, (1 << 5)",
-			"mov cr4, eax",
-			"pop eax"
-		)
-	}
+	// TODO: Investigate: PAE seems to break under QEMU, but OSDev Wiki claims it's needed for 64-bit mode.
+	// println!("Enabling PAE & PGE");
+	// unsafe {
+	// 	asm!(
+	// 		"mov eax, cr4",
+	// 		"or eax, (1 << 5)",
+	// 		"mov cr4, eax",
+	// 		out("eax") _
+	// 	)
+	// }
 
-	// Load the  page map level 4 (which implicitly loads all page tables, since it points to the other tables)
-	unsafe { asm!("mov cr3, eax", in("eax") &page_map_level_4) }
+	// Load the page map level 4 (PML4)
+	// The PML4 is the top-level page table, and its entries point to lower level page tables
+	// Thus this implicitly loads all our page tables
+	println!("Loading PML4");
+	unsafe { asm!("mov cr3, eax", in("eax") (page_map_level_4.ptr() as u32)) }
 
 	// Set the EFER MSR's LME bit.
 	// MSR: Model-specific registers - registers that can change between CPU models. Technically you should
@@ -78,40 +70,40 @@ extern "C" fn main(sector: u16) -> ! {
 	// MSRs are all identified by specific numbers. To read an MSR, call `rdmsr` and provide the MSR's number
 	// in ECX. The value will be read into EAX. To write an MSR, call `wrmsr` with the MSR's number in ECX and
 	// the value to write in EAX.
+	println!("Setting LME");
 	unsafe {
 		asm!(
-			"push eax",
-			"push ecx",
 			"mov ecx, 0xC0000080", // The EFER MSR's number
 			"rdmsr",
-			"or eax, 0x00000100", // The LME bit
+			"or eax, 1 << 8", // The LME bit
 			"wrmsr",
-			"pop ecx",
-			"pop eax",
+			// Tell rust we use these registers
+			out("eax") _,
+			out("ecx") _
 		)
 	}
 
 	// Enable paging and protected mode simultaneously
-	// This, combined with the LME bit above, jumps straight from real/16-bit mode into 64-bit mode
+	// This, combined with what we did above, jumps straight from real/16-bit mode into 64-bit mode
+	println!("Enabling paging & protected mode");
 	unsafe {
 		asm!(
-			"push eax",
 			"mov eax, cr0",
-			"or eax, 0x01",
+			"or eax, 1 << 0",
+			"or eax, 1 << 16",
 			"or eax, 1 << 31",
 			"mov cr0, eax",
-			"pop eax",
+			// Tell rust we use this register
+			out("eax") _
 		)
 	}
 
 	// Load the GDT
+	// The GDT is the legacy way for defining memory permissions, from before paging was invented
+	// The CPU will actually ignore this in 64-bit mode and use pages instead
+	// However, it's still required to set up a GDT to leave 16-bit mode
+	println!("Loading GDT");
 	unsafe { asm!("lgdt [{}]", in(reg) &gdt_descriptor) }
-
-	// Jump back to the bootstrapper at 0x7C00. Now that 64-bit mode is enabled, it'll bootstrap
-	// the elf-loader instead of bootloader.
-	unsafe { asm!("push ax", "mov ecx, 0x7C00", "jmp ecx", "hlt", in("ax") sector) }
-
-	panic!()
 }
 
 /// Builds and sets a GDT with 3 entries: null, all memory read/write, all memory executable.
@@ -169,68 +161,45 @@ fn build_gdt() -> ManuallyDrop<GdtDescriptor> {
 	})
 }
 
-fn build_idt() -> ManuallyDrop<IdtDescriptor> {
-	let idt = ManuallyDrop::new(Idt {
-		interrupts: [InterruptDescriptor::NULL],
-	});
-	ManuallyDrop::new(IdtDescriptor {
-		offset: &idt as *const ManuallyDrop<Idt<1>> as _,
-		size: 0,
-	})
-}
-
-/// Identity-maps .5tib of memory with all permissions. This amount of memory probably doesn't exist
-/// on the actual computer, but that's not important, because that much memory won't be used anyways;
-/// this is just an easy way to set RWX permissions for all memory on the machine while the kernel
-/// is loaded. The kernel is responsible for detecting the actual amount of memory on the machine and
-/// setting actual memory permissions.
+/// Identity-maps 2mib of memory with RWX permissions. This is temporary, just enough to get our kernel booted.
 ///
 /// This uses `ManuallyDrop` to leak the pages and prevent them from ever getting destructed.
-fn build_page_tables() -> PageMap {
-	// Build the page directory pointer table
-	let mut page_directory_pointer_table = PageMap::new();
+fn build_page_tables() -> ManuallyDrop<PageMap<PageMapLevel4Entry>> {
+	let mut page_table = ManuallyDrop::new(PageMap::<PageTableEntry>::new());
 	let mut address = 0;
-	for entry in page_directory_pointer_table.0.iter_mut() {
-		*entry = PageDirectoryPointerTableEntryBuilder {
-			present: true,
-			writable: true,
-			user_mode: false,
-			write_through: false,
-			cache_disabled: false,
-			accessed: false,
-			dirty: false,
-			direct_map: true,
-			global: false,
-			pat: false,
-			address,
-			protection_key: None,
-			execute_disable: false,
-		}
-		.build();
-		// Each page maps 1gib of memory
-		address += 0x40000000;
+	for entry in page_table.iter_mut() {
+		entry
+			.set_present(true)
+			.set_writable(true)
+			.set_address(address);
+		address += 0x1000;
 	}
 
-	// Build the page map level 4 and point it to the page directory pointer table
-	let mut page_map_level_4 = PageMap::new();
-	page_map_level_4.0[0] = PageMapLevel4EntryBuilder {
-		present: true,
-		writable: true,
-		user_mode: false,
-		write_through: false,
-		cache_disabled: false,
-		accessed: false,
-		address: &page_directory_pointer_table as *const _ as u64,
-		execute_disable: false,
-	}
-	.build();
+	let mut page_directory = ManuallyDrop::new(PageMap::<PageDirectoryEntry>::new());
+	page_directory[0]
+		.set_present(true)
+		.set_writable(true)
+		.set_address(page_table.ptr() as _);
+
+	let mut page_directory_pointer_table =
+		ManuallyDrop::new(PageMap::<PageDirectoryPointerTableEntry>::new());
+	page_directory_pointer_table[0]
+		.set_present(true)
+		.set_writable(true)
+		.set_address(page_directory.ptr() as _);
+
+	let mut page_map_level_4 = ManuallyDrop::new(PageMap::<PageMapLevel4Entry>::new());
+	page_map_level_4[0]
+		.set_present(true)
+		.set_writable(true)
+		.set_address(page_directory_pointer_table.ptr() as _);
 
 	page_map_level_4
 }
 
-// Unused fn. I was adding support for PCIe devices before finding out that the default QEMU
-// machine doesn't support PCIe devices. I didn't want to delete the code so it's saved here.
-fn _pcie() {
+// PCI will eventually be put in its own boot program so the bootstrapper can use it to read from
+// disk. Right now it's here as a POC.
+fn pci() {
 	let mut address = 0;
 	let mut maybe_rsdp = None;
 
@@ -250,9 +219,10 @@ fn _pcie() {
 	// Can use: `if let Ok(xsdp: &Xsdp) = rsdp.try_into() {}`
 	// Then need to follow XSDP pointer instead of RSDP pointer
 
-	println!("Found RSDP. {:?}", rsdp.signature);
+	println!("Found RSDP at {address:#x}",);
 	let rsdt = unsafe { Rsdt::try_from_raw(rsdp.rsdt_address as _).unwrap() };
-	println!("Found RSDT. {:?}", rsdt.descriptor.signature);
+	let address = rsdp.rsdt_address;
+	println!("Found RSDT at {address:#x}");
 	for table in rsdt.tables {
 		let rsdt = unsafe { Rsdt::try_from_raw(*table as _).unwrap() };
 		println!(
@@ -260,6 +230,68 @@ fn _pcie() {
 			core::str::from_utf8(&rsdt.descriptor.signature).unwrap()
 		);
 	}
-	let mcfg = rsdt.find_table("MCFG").unwrap();
-	println!("OEM ID: {:?}", mcfg.oem_id);
+
+	// If the system supports PCIe, there will be an MCFG table. Otherwise, we fall back to using regular PCI.
+	if let Some(_mcfg) = rsdt.find_table("MCFG") {
+		todo!("PCIe")
+	} else {
+		println!("No PCIe detected, falling back on PCI...");
+
+		// PCI bus 0, device 0, fn 0 is the root PCI bridge
+		let Some(root) = PciDevice::new(0, 0) else {
+			panic!("Failed to initialise PCI :c")
+		};
+
+		handle_pci_bridge(root);
+	}
+}
+
+fn handle_pci_bridge(mut bridge: PciDevice) {
+	let header = &bridge.header_meta;
+
+	if header.multi_function {
+		let mut function = 0;
+		while bridge.set_function(function).is_ok() {
+			let register = bridge.read_register(6).to_ne_bytes();
+			let bus = register[1];
+			handle_pci_bus(bus);
+
+			function += 1;
+		}
+	} else {
+		let register = bridge.read_register(6).to_ne_bytes();
+		let bus = register[2];
+		handle_pci_bus(bus);
+	}
+}
+
+fn handle_pci_bus(bus: u8) {
+	for device_id in 0..32 {
+		if let Some(mut device) = PciDevice::new(bus, device_id) {
+			let header = &device.header_meta;
+
+			if header.kind == HeaderType::PciToPci {
+				println!("PCI bridge at {bus}.{device_id}");
+				handle_pci_bridge(device);
+			} else if header.multi_function {
+				let mut function = 0;
+				while device.set_function(function).is_ok() {
+					handle_pci_device(&device);
+					function += 1;
+				}
+			} else {
+				handle_pci_device(&device);
+			}
+		}
+	}
+}
+
+fn handle_pci_device(device: &PciDevice) {
+	println!("Found PCI device with class: {:?}", device.class);
+	if device.class == Class::MassStorageController(MassStorageControllerSubclass::Ide) {
+		println!(
+			"Found IDE controller. prog_if: {:#b}",
+			device.programming_interface
+		);
+	}
 }

@@ -4,7 +4,7 @@ This is the core bootloader for BS. It takes care of entering 64-bit mode, then 
 
 When the CPU turns on, it starts in "real mode", a limited 16-bit environment. The CPU only has access to about 1mb of memory since it's working with 16 bits at a time - and only about half of that is actually useable, as the rest is reserved for BIOS, memory-mapped IO, etc. This is a pretty limiting size for the kernel, so this bootloader enters 64-bit, giving the 64-bit ELF loader access to all the computer's memory.
 
-After entering 64-bit mode, the bootloader jumps to the bootstrapper. The bootstrapper will detect that 64-bit mode has been enabled, then load and jump to the ELF loader.
+After entering 64-bit mode, the bootloader returns to the bootstrapper, which will then load and call the ELF loader.
 
 # Building
 

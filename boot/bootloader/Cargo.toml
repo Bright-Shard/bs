@@ -5,7 +5,10 @@ edition = "2021"
 
 [dependencies.common]
 path = "../../lib/common"
-features = ["bios", "panic"]
+features = ["panic"]
 
 [dependencies.acpi]
 path = "../../lib/acpi"
+
+[dependencies.pci]
+path = "../../lib/pci"
