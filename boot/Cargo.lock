@@ -14,28 +14,39 @@ dependencies = [
 ]
 
 [[package]]
-name = "build-tools"
+name = "bootloader"
 version = "0.1.0"
+dependencies = [
+ "acpi",
+ "ata",
+ "common",
+ "pci",
+]
+
+[[package]]
+name = "bootstrapper"
+version = "0.1.0"
+dependencies = [
+ "acpi",
+ "common",
+]
 
 [[package]]
 name = "common"
 version = "0.1.0"
 
 [[package]]
+name = "elf-loader"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "frieren",
+]
+
+[[package]]
 name = "frieren"
 version = "0.1.0"
 
 [[package]]
-name = "kernel"
-version = "0.1.0"
-dependencies = [
- "common",
-]
-
-[[package]]
 name = "pci"
-version = "0.1.0"
-
-[[package]]
-name = "qemu"
 version = "0.1.0"

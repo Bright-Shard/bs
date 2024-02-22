@@ -386,8 +386,6 @@ impl Class {
 #[non_exhaustive]
 pub enum Vendor {
 	AdvancedMicroDevices = 0x1022,
-	/// Reserved to represent an invalid vendor, which indicates that a PCI device doesn't exist.
-	Invalid = 0xFFFF,
 }
 impl TryFrom<u16> for Vendor {
 	type Error = ();
@@ -395,7 +393,6 @@ impl TryFrom<u16> for Vendor {
 	fn try_from(value: u16) -> Result<Self, Self::Error> {
 		Ok(match value {
 			0x1022 => Self::AdvancedMicroDevices,
-			0xFFFF => Self::Invalid,
 			_ => return Err(()),
 		})
 	}
@@ -421,7 +418,6 @@ impl TryFrom<u8> for HeaderMeta {
 			0 => HeaderType::General,
 			1 => HeaderType::PciToPci,
 			2 => HeaderType::PciToCardbus,
-			3 => return Err(()),
 			_ => unreachable!(),
 		};
 

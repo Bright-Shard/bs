@@ -12,3 +12,6 @@ path = "../../lib/acpi"
 
 [dependencies.pci]
 path = "../../lib/pci"
+
+[dependencies.ata]
+path = "../../lib/ata"

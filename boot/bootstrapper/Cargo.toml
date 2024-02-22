@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies.common]
 path = "../../lib/common"
-features = ["bios"]
 
 [dependencies.acpi]
 path = "../../lib/acpi"

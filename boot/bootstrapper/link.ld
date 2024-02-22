@@ -6,7 +6,6 @@ SECTIONS {
     .asm :
     {
         .asm_main
-        .asm_code
         *(.asm .asm.*)
     }
 

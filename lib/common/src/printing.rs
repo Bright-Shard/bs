@@ -2,19 +2,24 @@
 //! If using the BIOS feature, this uses int 0x10 to print characters.
 //! Otherwise, this uses VGA text mode.
 
-use core::fmt::{Arguments as FmtArgs, Write};
+use core::{fmt::Write, ptr::addr_of_mut};
 
-pub static mut GLOBAL_PRINTER: VgaTextBuffer = VgaTextBuffer { idx: 0 };
+pub static mut GLOBAL_PRINTER: Printer = Printer { idx: 0 };
 
 #[derive(Default)]
-pub struct VgaTextBuffer {
+pub struct Printer {
 	pub idx: usize,
 }
-impl VgaTextBuffer {
+#[allow(dead_code)] // Some consts are only used with certain crate features
+impl Printer {
 	const BUFFER: *mut [VgaTextChar; 8_000] = 0xB8000 as *mut _;
 	const NUM_ROWS: usize = 25;
 	const NUM_COLUMNS: usize = 80;
 	const LEN: usize = Self::NUM_ROWS * Self::NUM_COLUMNS;
+
+	pub fn get_global<'a>() -> &'a mut Self {
+		unsafe { &mut *addr_of_mut!(GLOBAL_PRINTER) }
+	}
 
 	/// Prints one byte to the screen.
 	pub fn write_byte(&mut self, byte: u8) {
@@ -34,31 +39,18 @@ impl VgaTextBuffer {
 	pub fn clear(&mut self) {
 		let buffer = unsafe { &mut *Self::BUFFER };
 
-		// For some reason, this while loop gets compiled down to *much* less
-		// code than a for loop does. We need a small binary size for the
-		// bootstrapper, so we use a while loop instead of a for loop.
-		let mut idx = 0;
-		while idx != Self::LEN {
-			buffer[idx].letter = 0;
-			buffer[idx].colour = 0;
-			idx += 1;
+		for char in buffer {
+			char.letter = 0;
+			char.colour = 0;
 		}
 
 		self.idx = 0;
 	}
-
-	#[inline(always)]
-	pub fn write(&mut self, args: FmtArgs) {
-		self.write_fmt(args).unwrap()
-	}
-	#[inline(always)]
-	pub fn write_nofmt(&mut self, s: &str) {
-		s.as_bytes().iter().for_each(|byte| self.write_byte(*byte));
-	}
 }
-impl Write for VgaTextBuffer {
+impl Write for Printer {
 	fn write_str(&mut self, s: &str) -> core::fmt::Result {
-		self.write_nofmt(s);
+		s.bytes().for_each(|byte| self.write_byte(byte));
+
 		Ok(())
 	}
 }
@@ -72,33 +64,20 @@ pub struct VgaTextChar {
 #[macro_export]
 macro_rules! print {
     () => {};
-    ($($arg:tt)*) => {
-        unsafe { $crate::printing::GLOBAL_PRINTER.write(format_args!($($arg)*)) }
-    };
+    ($($arg:tt)*) => {{
+		use core::fmt::Write;
+
+        $crate::printing::Printer::get_global().write_fmt(format_args!($($arg)*)).unwrap();
+    }};
 }
 #[macro_export]
 macro_rules! println {
     () => {
-        unsafe { $crate::printing::GLOBAL_PRINTER.write_byte(b'\n') }
+        $crate::printing::Printer::get_global().write_byte(b'\n')
     };
-    ($($arg:tt)*) => {
-        unsafe { $crate::printing::GLOBAL_PRINTER.write(format_args!("{}\n", format_args!($($arg)*))) }
-    };
-}
+    ($($arg:tt)*) => {{
+		use core::fmt::Write;
 
-#[macro_export]
-macro_rules! print_nofmt {
-	() => {};
-	($str:literal) => {
-		unsafe { $crate::printing::GLOBAL_PRINTER.write_nofmt($str) }
-	};
-}
-#[macro_export]
-macro_rules! println_nofmt {
-	() => {
-		unsafe { $crate::printing::GLOBAL_PRINTER.write_byte(b'\n') }
-	};
-	($str:literal) => {
-		unsafe { $crate::printing::GLOBAL_PRINTER.write_nofmt($str) }
-	};
+        $crate::printing::Printer::get_global().write_fmt(format_args!("{}\n", format_args!($($arg)*))).unwrap();
+    }};
 }

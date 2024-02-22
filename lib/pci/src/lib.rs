@@ -1,118 +1,110 @@
 #![no_std]
 
+pub mod address_space;
 pub mod classification;
-pub mod configuration;
 
-use {classification::*, configuration::*, core::ops::Deref};
+use {address_space::*, classification::*};
 
 /// A wrapper around [`PciDeviceAddress`] and the classification types in [`classification`] that
 /// makes it easy to read a PCI device's configuration.
 pub struct PciDevice {
 	/// Used to access the PCI device's address space.
 	address: PciDeviceAddress,
-	/// Functions available on this device.
-	functions: [Option<PciDeviceFunction>; 8],
-	/// The function we're currently working with
-	active_function: usize,
+	/// Caches values from the PCI configuration space. There are 256 bytes in the configuration
+	/// space. Only 32 bits can be read at a time, so it's split into 64 4-byte registers.
+	cache: [Option<[u8; 4]>; 64],
 }
 impl PciDevice {
-	/// Attempts to access a PCI device on a PCI bus. Will return `None` if no device exists at
-	/// the specified device ID and PCI bus or the device's class is unknown.
-	pub fn new(bus: u8, device: u8) -> Option<Self> {
-		let address = PciDeviceAddress::new().with_bus(bus).with_device(device);
+	/// Attempts to access a PCI function on a PCI device on a PCI bus. Will return `None` if no device
+	/// exists at that bus/device/function.
+	pub fn new(bus: u8, device: u8, function: u8) -> Option<Self> {
+		let address = PciDeviceAddress::new()
+			.with_bus(bus)
+			.with_device(device)
+			.with_function(function);
 
 		let mut this = Self {
 			address,
-			functions: [None, None, None, None, None, None, None, None],
-			active_function: 0,
+			cache: [None; 64],
 		};
-		this.set_function(0).ok()?;
+
+		// If the device isn't present, a PCI read will return `0xFFFFFFFF`. That's an invalid vendor
+		// so it immediately means the device is not present.
+		// read_register also currently returns `None` on `0xFFFFFFFF`.
+		this.read_register(0)?;
 
 		Some(this)
 	}
 
-	/// Switch the actively controlled function on the device. Errors if that function doesn't exist.
-	#[allow(clippy::result_unit_err)]
-	pub fn set_function(&mut self, function_id: usize) -> Result<(), ()> {
-		if function_id <= 7 {
-			let function_cache = self.functions.get_mut(function_id).unwrap();
-			if function_cache.is_none() {
-				if let Some(function) =
-					PciDeviceFunction::new(self.address.with_function(function_id as u8))
-				{
-					*function_cache = Some(function);
-					self.active_function = function_id;
-					return Ok(());
-				} else {
-					return Err(());
-				}
-			}
+	/// Attempts to identify the PCI device's vendor. Returns `None` if the vendor is unknown,
+	/// which will happen if the vendor isn't in BS' vendor enum (ie BS' vendor list is out of date
+	/// or incomplete).
+	pub fn vendor(&mut self) -> Option<Vendor> {
+		let bytes = self.read_register(0)?;
+		let vendor_id = u16::from_le_bytes([bytes[1], bytes[0]]);
 
-			self.active_function = function_id;
-			Ok(())
-		} else {
-			Err(())
+		vendor_id.try_into().ok()
+	}
+	/// Attempts to identify the PCI device's class and subclass. This uses the PCI class list from
+	/// the OSDev wiki, which *should* be complete and list every class; just in case it doesn't, though,
+	/// this will return `None` for an unrecognised class.
+	pub fn class(&mut self) -> Option<Class> {
+		let bytes = self.read_register(2)?;
+
+		Class::from_bytes(bytes[3], bytes[2])
+	}
+	/// Gets the header metadata from the configuration space. See [`HeaderMeta`].
+	pub fn header(&mut self) -> Option<HeaderMeta> {
+		let bytes = self.read_register(3)?;
+
+		bytes[2].try_into().ok()
+	}
+	/// Get the `prog_if` byte.
+	pub fn programming_interface(&mut self) -> Option<u8> {
+		let bytes = self.read_register(2)?;
+
+		Some(bytes[1])
+	}
+
+	/// Read a specific register from the PCI configuration space. This will get the value from the cache
+	/// if it exists; otherwise it will get the value from PCI and store the result in cache. Returns `None`
+	/// if the value is `0xFFFFFFFF`.
+	pub fn read_register(&mut self, register: u8) -> Option<[u8; 4]> {
+		match self.cache[register as usize] {
+			Some(val) => Some(val),
+			None => {
+				let val = self.read_register_uncached(register)?;
+				self.cache[register as usize] = Some(val);
+				Some(val)
+			}
+		}
+	}
+	/// Read a register from the PCI configuration space. This will always read from PCI, and never
+	/// reads from or writes to the cache. Returns `None` if the value is `0xFFFFFFFF`.
+	pub fn read_register_uncached(&self, register: u8) -> Option<[u8; 4]> {
+		match self.address.clone().with_register(register).read() {
+			0xFFFFFFFF => None,
+			val => Some(val.to_ne_bytes()),
 		}
 	}
 
+	/// Get the PCI bus this device is on.
 	#[inline(always)]
 	pub fn bus(&self) -> u8 {
 		self.address.bus()
 	}
+	/// Get the ID of this device on its PCI bus.
 	#[inline(always)]
 	pub fn device(&self) -> u8 {
 		self.address.device()
 	}
+	/// Get the ID of this function on its device in the PCI bus.
+	///
+	/// A PCI device may have multiple functions. Each function technically
+	/// resides on the same device, but gets its own PCI configuration space,
+	/// so it's easiest to just treat each function as a separate device.
 	#[inline(always)]
 	pub fn function(&self) -> u8 {
-		self.active_function as _
-	}
-}
-impl Deref for PciDevice {
-	type Target = PciDeviceFunction;
-
-	fn deref(&self) -> &Self::Target {
-		self.functions[self.active_function].as_ref().unwrap()
-	}
-}
-
-/// Represents a single function on a PCI device.
-pub struct PciDeviceFunction {
-	pub class: Class,
-	pub header_meta: HeaderMeta,
-	pub programming_interface: u8,
-	address: PciDeviceAddress,
-}
-impl PciDeviceFunction {
-	pub fn new(address: PciDeviceAddress) -> Option<Self> {
-		// If vendor == 0xFFFF, no device exists at that address.
-		let vendor_bytes = address.with_register(0).read().to_ne_bytes();
-		let vendor_id = u16::from_le_bytes([vendor_bytes[1], vendor_bytes[0]]);
-		let vendor = vendor_id.try_into();
-		if vendor == Ok(Vendor::Invalid) {
-			return None;
-		}
-
-		let class_bytes = address.with_register(2).read().to_ne_bytes();
-		let class_byte = class_bytes[3];
-		let subclass = class_bytes[2];
-		let class = Class::from_bytes(class_byte, subclass)?;
-		let programming_interface = class_bytes[1];
-
-		let header_bytes = address.with_register(3).read().to_ne_bytes();
-		let header_byte = header_bytes[2];
-		let header_meta = HeaderMeta::try_from(header_byte).ok()?;
-
-		Some(Self {
-			class,
-			header_meta,
-			programming_interface,
-			address,
-		})
-	}
-
-	/// Reads a 32-bit register from the PCI device's configuration space.
-	pub fn read_register(&self, register: u8) -> u32 {
-		self.address.with_register(register * 4).read()
+		self.address.function()
 	}
 }

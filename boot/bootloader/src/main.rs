@@ -3,11 +3,8 @@
 
 use {
 	acpi::{rsdp::Rsdp, rsdt::Rsdt},
-	common::{
-		gdt::{self, *},
-		paging::*,
-		*,
-	},
+	ata::IdeController,
+	common::{gdt::*, paging::*, printing::Printer, *},
 	core::{arch::asm, mem::ManuallyDrop},
 	pci::{
 		classification::{Class, HeaderType, MassStorageControllerSubclass},
@@ -17,18 +14,17 @@ use {
 
 #[no_mangle]
 #[link_section = ".boot-program-main"]
-extern "C" fn main() {
-	unsafe {
-		// TODO: Make a friendlier API here
-		common::printing::GLOBAL_PRINTER.clear();
-	}
+fn main() {
+	Printer::get_global().clear();
 	// For some reason QEMU cuts off the first 2 lines of the console on my mac; seeing this
 	// message just confirms prints aren't getting cut off.
 	println!("\n\nhewwo");
 
 	// Eventually this PCI code is going to get put in its own crate/boot program.
 	// Right now it's here as a POC.
+	println!("PCI");
 	pci();
+	println!("ICP");
 
 	// TODO: Enable A20 line - https://wiki.osdev.org/A20_Line
 	// QEMU has it enabled by default, so we don't need it for now.
@@ -200,6 +196,7 @@ fn build_page_tables() -> ManuallyDrop<PageMap<PageMapLevel4Entry>> {
 // PCI will eventually be put in its own boot program so the bootstrapper can use it to read from
 // disk. Right now it's here as a POC.
 fn pci() {
+	println!("PCI");
 	let mut address = 0;
 	let mut maybe_rsdp = None;
 
@@ -238,7 +235,7 @@ fn pci() {
 		println!("No PCIe detected, falling back on PCI...");
 
 		// PCI bus 0, device 0, fn 0 is the root PCI bridge
-		let Some(root) = PciDevice::new(0, 0) else {
+		let Some(root) = PciDevice::new(0, 0, 0) else {
 			panic!("Failed to initialise PCI :c")
 		};
 
@@ -247,19 +244,21 @@ fn pci() {
 }
 
 fn handle_pci_bridge(mut bridge: PciDevice) {
-	let header = &bridge.header_meta;
+	let header = bridge.header().unwrap();
 
 	if header.multi_function {
+		let bus = bridge.bus();
+		let device = bridge.device();
 		let mut function = 0;
-		while bridge.set_function(function).is_ok() {
-			let register = bridge.read_register(6).to_ne_bytes();
+		while let Some(mut bridge) = PciDevice::new(bus, device, function) {
+			let register = bridge.read_register(6).unwrap();
 			let bus = register[1];
 			handle_pci_bus(bus);
 
 			function += 1;
 		}
 	} else {
-		let register = bridge.read_register(6).to_ne_bytes();
+		let register = bridge.read_register(6).unwrap();
 		let bus = register[2];
 		handle_pci_bus(bus);
 	}
@@ -267,31 +266,39 @@ fn handle_pci_bridge(mut bridge: PciDevice) {
 
 fn handle_pci_bus(bus: u8) {
 	for device_id in 0..32 {
-		if let Some(mut device) = PciDevice::new(bus, device_id) {
-			let header = &device.header_meta;
+		if let Some(mut device) = PciDevice::new(bus, device_id, 0) {
+			let header = device.header().unwrap();
 
 			if header.kind == HeaderType::PciToPci {
 				println!("PCI bridge at {bus}.{device_id}");
 				handle_pci_bridge(device);
 			} else if header.multi_function {
+				let bus = device.bus();
+				let device = device.device();
 				let mut function = 0;
-				while device.set_function(function).is_ok() {
-					handle_pci_device(&device);
+				while let Some(mut device) = PciDevice::new(bus, device, function) {
+					handle_pci_device(&mut device);
 					function += 1;
 				}
 			} else {
-				handle_pci_device(&device);
+				handle_pci_device(&mut device);
 			}
 		}
 	}
 }
 
-fn handle_pci_device(device: &PciDevice) {
-	println!("Found PCI device with class: {:?}", device.class);
-	if device.class == Class::MassStorageController(MassStorageControllerSubclass::Ide) {
+fn handle_pci_device(device: &mut PciDevice) {
+	println!("Found PCI device with class: {:?}", device.class());
+	if device.class()
+		== Some(Class::MassStorageController(
+			MassStorageControllerSubclass::Ide,
+		)) {
+		let controller = IdeController::from_pci(device).unwrap();
+		controller.primary_channel.set_interrupts(false);
+		controller.secondary_channel.set_interrupts(false);
 		println!(
 			"Found IDE controller. prog_if: {:#b}",
-			device.programming_interface
+			device.programming_interface().unwrap()
 		);
 	}
 }

@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["bootstrapper", "bootloader", "elf-loader"]
+
+# For minimising the binary size - taken from phil-opp's bootloader and https://github.com/johnthagen/min-sized-rust
+[profile.dev]
+panic = "abort"
+opt-level = "z"
+strip = true
+lto = true
+overflow-checks = false
+debug-assertions = false
+debug = false
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+strip = true
+lto = true
+overflow-checks = false
+debug-assertions = false
+debug = false

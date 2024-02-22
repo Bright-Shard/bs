@@ -1,3 +1,7 @@
+```cargo
+package.edition = "2021"
+```
+
 //! Builds BS into a bootable disk. This is implemented as a postbuild because postbuilds will always run
 //! after a crate has compiled, but normal builds will not be run if a crate isn't recompiled.
 

@@ -6,29 +6,9 @@ members = [
     "lib/frieren",
     "lib/acpi",
     "lib/pci",
-
-    "boot/bootloader",
-    "boot/bootstrapper",
-    "boot/elf-loader",
+    "lib/ata",
 
     "kernel",
 
     "qemu",
 ]
-
-# For minimising the binary size - taken from phil-opp's bootloader and https://github.com/johnthagen/min-sized-rust
-[profile.dev]
-panic = "abort"
-opt-level = "s"
-strip = true
-codegen-units = 1
-lto = true
-overflow-checks = false
-
-[profile.release]
-panic = "abort"
-opt-level = "s"
-strip = true
-codegen-units = 1
-lto = true
-overflow-checks = false

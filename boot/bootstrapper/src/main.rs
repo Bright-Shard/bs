@@ -1,10 +1,16 @@
 #![no_std]
 #![no_main]
 
-use core::{arch::global_asm, mem};
+use {
+	common::printing::Printer,
+	core::{
+		arch::{asm, global_asm},
+		fmt::Write,
+		mem,
+	},
+};
 
-/// Where the bootstrapper loads programs into memory.
-const LOAD_ADDR: u16 = 0x7E00;
+mod disk;
 
 // This is where BS starts. It's written in AT&T syntax because for some reason I
 // can't correctly make a long jump in Intel syntax. The rest of the project is in
@@ -56,9 +62,13 @@ call_bootloader:
 
     /* Set up the stack */
     mov $0x7C00, %sp
-    mov $0x7C00, %bp
 
-	/* Jump to Rust */
+	/* Jump to Rust, passing dx as an argument (the `drive` argument in `loader`) */
+    push %dx
+    // I should only have to push it once, but amazingly, that doesn't work. So we do it twice.
+    // Need to look into this more - I'm assuming it's something-something compiler optimisations.
+    // rust-osdev's bootloader only has to push it once. They also always compile in release mode.
+    push %dx
     call loader
 "#,
 // We actually need this because you can't do long jumps correctly in the intel
@@ -67,15 +77,14 @@ options(att_syntax)
 }
 
 #[no_mangle]
-extern "C" fn loader() -> ! {
+extern "C" fn loader(drive: u16) -> ! {
 	// Load bootloader into memory
-	// It returns the next unread disk sector, which will be the start of
-	// the ELF loader
-	let elfloader_sector = load_program(1, LOAD_ADDR);
+	// It returns the last read sector, aka the end of the bootloader program
+	let _end_of_bootloader = disk::load_program(1, drive);
 
 	// Call bootloader
-	let main = LOAD_ADDR as *const ();
-	let main: extern "C" fn() = unsafe { mem::transmute(main) };
+	let main = 0x7E00 as *const ();
+	let main: fn() = unsafe { mem::transmute(main) };
 	main();
 
 	// We're now in 64-bit mode and can't use BIOS calls, since they're 16-bit
@@ -83,50 +92,21 @@ extern "C" fn loader() -> ! {
 	// from disk instead of BIOS. This will give us more control and let us load the
 	// ELF loader into memory here.
 
-	loop {}
-
-	panic!()
-}
-
-/// Starting at <sector>, reads the disk into memory until it encounters 0xdeadbeef. The data gets
-/// loaded to 0x7E00.
-fn load_program(mut sector: u64, mut address: u16) -> u16 {
-	// The signature found at the end of the current disk sector (used to look for 0xdeadbeef, the end
-	// of the bootloader)
-	let mut sig = 0u32;
-
-	while sig != 0xdeadbeef {
-		common::disks::read_sectors(&mut sector, 1, &mut address, 0, None);
-
-		// Load the sector's signature
-		sig = unsafe {
-			u32::from_ne_bytes([
-				*((address - 4) as *const u8),
-				*((address - 3) as *const u8),
-				*((address - 2) as *const u8),
-				*((address - 1) as *const u8),
-			])
-		};
+	loop {
+		unsafe { asm!("hlt") }
 	}
-
-	sector as _
 }
 
 #[cfg(not(test))]
 mod panic {
-	use core::{arch::asm, panic::PanicInfo};
+	use core::{arch::asm, fmt::Write, panic::PanicInfo};
 
 	#[panic_handler]
-	fn kys(info: &PanicInfo) -> ! {
-		unsafe {
-			// TODO: Make a cleaner API for this
-			let printer = &mut common::printing::GLOBAL_PRINTER;
-			printer.clear();
-
-			// QEMU cuts off the top 2 lines of the console on my mac so we
-			// add a \n\n to get around it
-			printer.write_nofmt("\n\nBOOTSTRAPPER PANIC");
-		}
+	fn kys(_info: &PanicInfo) -> ! {
+		// QEMU cuts off the top 2 lines of the console on my mac so we
+		common::printing::Printer::get_global()
+			.write_str("\n\nBOOTSTRAPPER PANIC")
+			.unwrap();
 
 		loop {
 			unsafe {

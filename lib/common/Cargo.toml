@@ -5,5 +5,4 @@ edition = "2021"
 
 [features]
 default = []
-bios = []
 panic = []

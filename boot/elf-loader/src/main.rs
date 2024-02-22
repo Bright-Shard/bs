@@ -16,8 +16,7 @@ asm_main:
 
 #[no_mangle]
 extern "C" fn main() -> ! {
-	println!();
-	println_nofmt!("Inside 64-bit ELF loader :3");
+	println!("\n\nInside 64-bit ELF loader :3");
 	unsafe { asm!("hlt") }
 	unreachable!()
 }

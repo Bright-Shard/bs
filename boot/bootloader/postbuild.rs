@@ -1,4 +1,5 @@
 ```cargo
+package.edition = "2021"
 [dependencies.build-tools]
 path = "../../lib/build-tools"
 ```
