@@ -10,6 +10,7 @@ version = "0.1.0"
 name = "ata"
 version = "0.1.0"
 dependencies = [
+ "exrs",
  "pci",
 ]
 
@@ -19,6 +20,17 @@ version = "0.1.0"
 
 [[package]]
 name = "common"
+version = "0.1.0"
+
+[[package]]
+name = "exrs"
+version = "0.1.0"
+dependencies = [
+ "exrs-macros",
+]
+
+[[package]]
+name = "exrs-macros"
 version = "0.1.0"
 
 [[package]]

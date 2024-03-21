@@ -72,6 +72,8 @@ impl PciDeviceAddress {
 				// inout reads `result` into eax at the start
 				// of the assembly and then reads eax to `result`
 				// at the end of the assembly.
+				//
+				// input("sex") - Toast, 2024
 				inout("eax") result,
 			)
 		}

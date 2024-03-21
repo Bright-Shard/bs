@@ -1,8 +1,7 @@
 [package]
-name = "ata"
+name = "exrs"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-pci.workspace = true
-exrs.workspace = true
+exrs-macros = { path = "./exrs-macros" }

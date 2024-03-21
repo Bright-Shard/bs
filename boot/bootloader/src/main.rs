@@ -5,7 +5,10 @@ use {
 	acpi::{rsdp::Rsdp, rsdt::Rsdt},
 	ata::IdeController,
 	common::{gdt::*, paging::*, printing::Printer, *},
-	core::{arch::asm, mem::ManuallyDrop},
+	core::{
+		arch::asm,
+		mem::{ManuallyDrop, MaybeUninit},
+	},
 	pci::{
 		classification::{Class, HeaderType, MassStorageControllerSubclass},
 		PciDevice,
@@ -196,7 +199,6 @@ fn build_page_tables() -> ManuallyDrop<PageMap<PageMapLevel4Entry>> {
 // PCI will eventually be put in its own boot program so the bootstrapper can use it to read from
 // disk. Right now it's here as a POC.
 fn pci() {
-	println!("PCI");
 	let mut address = 0;
 	let mut maybe_rsdp = None;
 
@@ -293,12 +295,31 @@ fn handle_pci_device(device: &mut PciDevice) {
 		== Some(Class::MassStorageController(
 			MassStorageControllerSubclass::Ide,
 		)) {
-		let controller = IdeController::from_pci(device).unwrap();
+		let mut controller = IdeController::from_pci(device).unwrap();
 		controller.primary_channel.set_interrupts(false);
 		controller.secondary_channel.set_interrupts(false);
 		println!(
 			"Found IDE controller. prog_if: {:#b}",
 			device.programming_interface().unwrap()
 		);
+
+		controller.primary_channel.set_disk(ata::IdeDisk::Primary);
+		controller
+			.primary_channel
+			.send_command(ata::AtaCommand::ReadPio, 0, 0)
+			.unwrap();
+		let mut output: [u16; 256] = [0; 256];
+		for part in output.iter_mut() {
+			*part = controller
+				.primary_channel
+				.read_register(ata::AtaRegister::Data);
+		}
+		print!("First sector on drive: [");
+		for word in output {
+			for byte in word.to_ne_bytes() {
+				print!("{byte:02x}, ")
+			}
+		}
+		println!("]")
 	}
 }

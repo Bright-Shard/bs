@@ -11,4 +11,15 @@ members = [
     "kernel",
 
     "qemu",
+
+    "exrs",
+    "exrs/exrs-macros",
 ]
+
+[workspace.dependencies]
+pci = { path = "lib/pci" }
+ata = { path = "lib/ata" }
+acpi = { path = "lib/acpi" }
+frieren = { path = "lib/frieren" }
+common = { path = "lib/common" }
+exrs = { path = "exrs" }
