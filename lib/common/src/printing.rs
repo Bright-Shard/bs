@@ -33,6 +33,10 @@ impl Printer {
 				self.idx += 1;
 			}
 		}
+		// If text is going off the screen, bump it back up
+		if self.idx >= Self::NUM_ROWS * Self::NUM_COLUMNS {
+			self.bump_screen();
+		}
 	}
 
 	/// Clears the whole VGA buffer, making the screen black.
@@ -46,6 +50,28 @@ impl Printer {
 
 		self.idx = 0;
 	}
+
+	// TODO: Rename
+	// This function moves the text up on the screen to make room for more
+	pub fn bump_screen(&mut self) {
+		// Move text up to row above
+		let buffer = unsafe { &mut *Self::BUFFER };
+		for row in 1..Self::NUM_ROWS {
+			for col in 0..Self::NUM_COLUMNS {
+				let current_idx = row * Self::NUM_COLUMNS + col;
+				let target_idx = current_idx - Self::NUM_COLUMNS;
+				buffer[target_idx] = buffer[current_idx];
+			}
+		}
+		// Clear last row
+		for col in 0..Self::NUM_COLUMNS {
+			let idx = (Self::NUM_ROWS - 1) * Self::NUM_COLUMNS + col;
+			buffer[idx].letter = 0;
+			buffer[idx].colour = 0;
+		}
+		// Reset idx
+		self.idx = (Self::NUM_ROWS - 1) * Self::NUM_COLUMNS;
+	}
 }
 impl Write for Printer {
 	fn write_str(&mut self, s: &str) -> core::fmt::Result {
@@ -56,6 +82,7 @@ impl Write for Printer {
 }
 
 #[repr(packed)]
+#[derive(Clone, Copy)]
 pub struct VgaTextChar {
 	pub letter: u8,
 	pub colour: u8,
